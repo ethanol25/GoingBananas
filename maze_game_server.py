@@ -21,18 +21,18 @@ class MazeEnv(gym.Env):
         self.size = size
         self.action_space = spaces.Discrete(4)  # Up, Right, Down, Left
         self.observation_space = spaces.Discrete(size * size)
-        b = random.choice([0,4]) # whether or not to spawn a banana instead of floor
+        #b = random.choice([0,4]) # whether or not to spawn a banana instead of floor
         
         # Define maze (0=floor, 1=wall, 2=start, 3=goal, 4=banana)
         self.maze = np.array([
-            [2, b, b, 1, b, b, b, b],
-            [b, 1, b, 1, b, 1, 1, b],
-            [b, 1, b, b, b, b, b, b],
-            [b, b, b, 1, 1, 1, 1, b],
-            [1, 1, b, b, b, b, b, b],
-            [b, b, b, 1, b, 1, 1, b],
-            [b, 1, b, b, b, b, 1, b],
-            [b, 1, 1, 1, b, b, b, 3],
+            [2, 0, 0, 1, 0, 0, 0, 4],
+            [0, 1, 0, 1, 0, 1, 1, 0],
+            [0, 1, 4, 0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1, 4],
+            [1, 1, 0, 4, 0, 4, 0, 0],
+            [0, 4, 0, 1, 0, 1, 1, 0],
+            [0, 1, 0, 0, 0, 0, 0, 0],
+            [4, 1, 1, 1, 0, 0, 0, 3],
         ], dtype=object) # Enables functions to run
         
         self.original_maze = self.maze.copy()  # Store original for reset
@@ -347,7 +347,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                 "total_reward": total_reward
                             }
                         })
-                        await asyncio.sleep(0.05)
+                        await asyncio.sleep(0.0001)
                 
                 agent.decay_epsilon()
                 
@@ -357,7 +357,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "message": f"Episode {episode}: SUCCESS in {steps} steps! Reward: {total_reward:.1f}"
                     })
                 
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.05)
                 
             # Race mode
             elif racing:
