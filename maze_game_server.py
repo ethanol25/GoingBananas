@@ -84,10 +84,10 @@ class QLearningAgent:
         self.state_size = state_size
         self.action_size = action_size
         self.q_table = np.zeros((state_size, action_size))
-        self.learning_rate = 0.8 # 
+        self.learning_rate = 0.8 # How much Q-values are adjusted
         self.discount_factor = 0.95 # Determines the importance of future awards
-        self.epsilon = 1.0 
-        self.epsilon_decay = 0.995
+        self.epsilon = 1.0 # Epsilon Greedy Policy
+        self.epsilon_decay = 0.995 # Decay towards greedy actions
         self.min_epsilon = 0.01
         
     def get_action(self, state, training=True):
@@ -402,7 +402,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     done = False
                     test_steps = 0
                     
-                    while not done and test_steps < 100:
+                    while not done and test_steps < 100: # Runs max 100 steps against user
                         action = agent.get_action(state, training=False)
                         state, reward, terminated, truncated, _ = env.step(action)
                         done = terminated or truncated
@@ -451,7 +451,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 total_reward = 0
                 steps = 0
                 
-                while not done and steps < 200:
+                while not done and steps < 200: # Runs max 200 steps for training
                     action = agent.get_action(state, training=True)
                     next_state, reward, terminated, truncated, _ = env.step(action)
                     done = terminated or truncated
