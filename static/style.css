@@ -1,0 +1,121 @@
+/* static/style.css */
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: #1a1a2e;
+    color: #eee;
+    margin: 0;
+    padding: 20px;
+    font-size: 16px; /* Added for responsiveness */
+}
+h1 {
+    color: #00d4ff;
+}
+#maze-container {
+    display: inline-block;
+    border: 3px solid #00d4ff;
+    border-radius: 10px;
+    padding: 10px;
+    background: #16213e;
+    box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+}
+.maze-grid {
+    display: grid;
+    gap: 2px;
+    background: #0f3460;
+    padding: 5px;
+    border-radius: 5px;
+}
+.cell {
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    border-radius: 4px;
+    transition: all 0.3s;
+}
+.path { background: #2a2a4e; }
+.wall { background: #0f3460; border: 2px solid #1a1a3e; }
+.start { background: #4caf50; }
+.goal { background: #ff5722; }
+/* This is for the banana, tile 4 */
+.banana { background: #f9e79f; } 
+.agent { background: #00d4ff; position: relative; }
+.agent::after {
+    content: '🤖';
+    font-size: 32px;
+}
+#controls {
+    margin: 20px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+button {
+    padding: 12px 24px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    background: #00d4ff;
+    color: #1a1a2e;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+button:hover {
+    background: #00b8d4;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 212, 255, 0.3);
+}
+button:disabled {
+    background: #666;
+    cursor: not-allowed;
+    transform: none;
+}
+#stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    width: 100%;
+    max-width: 600px;
+    margin: 20px 0;
+}
+.stat {
+    background: #16213e;
+    padding: 15px;
+    border-radius: 8px;
+    border: 2px solid #0f3460;
+}
+.stat-label {
+    color: #888;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+.stat-value {
+    color: #00d4ff;
+    font-size: 24px;
+    font-weight: bold;
+}
+#log {
+    background: #16213e;
+    border: 2px solid #0f3460;
+    border-radius: 8px;
+    padding: 15px;
+    width: 100%;
+    max-width: 600px;
+    height: 150px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 12px;
+}
+.log-entry {
+    margin: 5px 0;
+    padding: 5px;
+    border-left: 3px solid #00d4ff;
+    padding-left: 10px;
+}
