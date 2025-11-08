@@ -1,5 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import gymnasium as gym
 from gymnasium import spaces
@@ -9,6 +9,7 @@ import asyncio
 from typing import List, Tuple
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Custom Maze Environment
 class MazeEnv(gym.Env):
@@ -20,16 +21,16 @@ class MazeEnv(gym.Env):
         self.action_space = spaces.Discrete(4)  # Up, Right, Down, Left
         self.observation_space = spaces.Discrete(size * size)
         
-        # Define maze (0=path, 1=wall, 2=start, 3=goal, 4=trap, 5=powerup, 6=checkpoint)
+        # Define maze (0=path, 1=wall, 2=start, 3=goal, 4=banana, 5=powerup, 6=checkpoint)
         self.maze = np.array([
-            [2, 0, 0, 1, 0, 5, 0, 0],
+            [2, 0, 0, 1, 0, 0, 0, 4],
             [0, 1, 0, 1, 0, 1, 1, 0],
-            [0, 1, 4, 0, 0, 0, 5, 6],
-            [0, 0, 0, 1, 1, 1, 1, 0],
-            [1, 1, 0, 4, 0, 0, 0, 5],
-            [0, 5, 0, 1, 0, 1, 1, 0],
-            [0, 1, 0, 0, 4, 0, 1, 6],
-            [0, 1, 1, 1, 0, 0, 0, 3],
+            [0, 1, 4, 0, 0, 0, 0, 0],
+            [0, 0, 0, 1, 1, 1, 1, 4],
+            [1, 1, 0, 4, 0, 4, 0, 0],
+            [0, 4, 0, 1, 0, 1, 1, 0],
+            [0, 1, 0, 0, 0, 0, 0, 0],
+            [4, 1, 1, 1, 0, 0, 0, 3],
         ])
         
         self.original_maze = self.maze.copy()  # Store original for reset
@@ -106,22 +107,11 @@ class MazeEnv(gym.Env):
                     reward -= 0.5  # Moving away
                 
                 # Check for special cells
-                if cell_type == 4:  # Trap
-                    reward = -20
-                    info['message'] = "💥 Hit a trap! -20"
-                    
-                elif cell_type == 5:  # Power-up
+                if cell_type == 4:  # Banana
                     reward = 15
                     self.maze[new_pos[0], new_pos[1]] = 0  # Remove after collection
-                    info['message'] = "⭐ Collected power-up! +15"
+                    info['message'] = "🍌 Collected banana! +15"
                     
-                elif cell_type == 6:  # Checkpoint
-                    checkpoint_id = tuple(new_pos)
-                    if checkpoint_id not in self.checkpoints:
-                        self.checkpoints.add(checkpoint_id)
-                        reward = 10
-                        info['message'] = "🚩 Checkpoint reached! +10"
-                
                 # Exploration bonus
                 cell_tuple = tuple(new_pos)
                 if cell_tuple not in self.visited_cells:
@@ -139,12 +129,7 @@ class MazeEnv(gym.Env):
                     else:
                         info['message'] = "🏆 Goal reached! +100"
                     terminated = True
-        else:
-            # Out of bounds penalty
-            reward = -10
-            info['message'] = "Out of bounds! -10"
-            new_distance = old_distance
-        
+
         # Time penalty (encourages faster solutions)
         if self.total_steps > 100:
             reward -= 0.5
@@ -197,449 +182,8 @@ agent = QLearningAgent(env.observation_space.n, env.action_space.n)
 
 
 @app.get("/")
-async def get():
-    html_content = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Q-Learning Maze Race</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                background: #1a1a2e;
-                color: #eee;
-                margin: 0;
-                padding: 20px;
-            }
-            h1 {
-                color: #00d4ff;
-            }
-            .subtitle {
-                color: #888;
-                margin-top: -10px;
-                margin-bottom: 20px;
-            }
-            #maze-container {
-                display: inline-block;
-                border: 3px solid #00d4ff;
-                border-radius: 10px;
-                padding: 10px;
-                background: #16213e;
-                box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
-            }
-            .maze-grid {
-                display: grid;
-                gap: 2px;
-                background: #0f3460;
-                padding: 5px;
-                border-radius: 5px;
-            }
-            .cell {
-                width: 50px;
-                height: 50px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 24px;
-                border-radius: 4px;
-                transition: all 0.3s;
-                position: relative;
-            }
-            .path { background: #2a2a4e; }
-            .wall { background: #0f3460; border: 2px solid #1a1a3e; }
-            .start { background: #4caf50; }
-            .goal { background: #ff5722; }
-            .trap { 
-                background: #d32f2f;
-                animation: pulse 1s infinite;
-            }
-            .trap::before {
-                content: '💥';
-                font-size: 28px;
-            }
-            .powerup {
-                background: #ffd700;
-                animation: glow 1.5s infinite;
-            }
-            .powerup::before {
-                content: '⭐';
-                font-size: 28px;
-            }
-            .checkpoint {
-                background: #9c27b0;
-                animation: fade 2s infinite;
-            }
-            .checkpoint::before {
-                content: '🚩';
-                font-size: 28px;
-            }
-            @keyframes pulse {
-                0%, 100% { box-shadow: 0 0 5px rgba(211, 47, 47, 0.5); }
-                50% { box-shadow: 0 0 20px rgba(211, 47, 47, 1); }
-            }
-            @keyframes glow {
-                0%, 100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
-                50% { box-shadow: 0 0 25px rgba(255, 215, 0, 1); }
-            }
-            @keyframes fade {
-                0%, 100% { opacity: 0.7; }
-                50% { opacity: 1; }
-            }
-            .agent { 
-                background: #00d4ff;
-                box-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
-            }
-            .agent::after {
-                content: '🤖';
-                font-size: 32px;
-                position: absolute;
-            }
-            .player {
-                background: #ffd700;
-                box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
-            }
-            .player::after {
-                content: '👤';
-                font-size: 32px;
-                position: absolute;
-            }
-            .both-sprites {
-                background: linear-gradient(135deg, #00d4ff 50%, #ffd700 50%);
-                box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
-            }
-            .both-sprites::after {
-                content: '🤖👤';
-                font-size: 24px;
-                position: absolute;
-            }
-            #controls {
-                margin: 20px;
-                display: flex;
-                gap: 10px;
-                flex-wrap: wrap;
-                justify-content: center;
-            }
-            button {
-                padding: 12px 24px;
-                font-size: 16px;
-                border: none;
-                border-radius: 5px;
-                cursor: pointer;
-                background: #00d4ff;
-                color: #1a1a2e;
-                font-weight: bold;
-                transition: all 0.3s;
-            }
-            button:hover {
-                background: #00b8d4;
-                transform: translateY(-2px);
-                box-shadow: 0 4px 8px rgba(0, 212, 255, 0.3);
-            }
-            button:disabled {
-                background: #666;
-                cursor: not-allowed;
-                transform: none;
-            }
-            .player-button {
-                background: #ffd700;
-            }
-            .player-button:hover {
-                background: #ffed4e;
-            }
-            #stats {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-                gap: 15px;
-                width: 100%;
-                max-width: 800px;
-                margin: 20px 0;
-            }
-            .stat {
-                background: #16213e;
-                padding: 15px;
-                border-radius: 8px;
-                border: 2px solid #0f3460;
-            }
-            .stat-label {
-                color: #888;
-                font-size: 12px;
-                text-transform: uppercase;
-            }
-            .stat-value {
-                color: #00d4ff;
-                font-size: 24px;
-                font-weight: bold;
-            }
-            .player-stat .stat-value {
-                color: #ffd700;
-            }
-            #log {
-                background: #16213e;
-                border: 2px solid #0f3460;
-                border-radius: 8px;
-                padding: 15px;
-                width: 100%;
-                max-width: 800px;
-                height: 150px;
-                overflow-y: auto;
-                font-family: monospace;
-                font-size: 12px;
-            }
-            .log-entry {
-                margin: 5px 0;
-                padding: 5px;
-                border-left: 3px solid #00d4ff;
-                padding-left: 10px;
-            }
-            .log-player {
-                border-left-color: #ffd700;
-            }
-            .log-win {
-                border-left-color: #4caf50;
-                background: rgba(76, 175, 80, 0.1);
-            }
-            .controls-help {
-                background: #16213e;
-                border: 2px solid #0f3460;
-                border-radius: 8px;
-                padding: 15px;
-                margin: 10px 0;
-                max-width: 800px;
-                text-align: center;
-            }
-            .controls-help h3 {
-                color: #ffd700;
-                margin-top: 0;
-            }
-            .key-hint {
-                display: inline-block;
-                background: #0f3460;
-                padding: 5px 10px;
-                border-radius: 4px;
-                margin: 0 5px;
-                font-weight: bold;
-                color: #ffd700;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>🎮 Q-Learning Maze Race</h1>
-        <p class="subtitle">Human vs AI - Race to the goal!</p>
-        
-        <div class="controls-help">
-            <h3>🎯 Player Controls & Rewards</h3>
-            <p>Use arrow keys: 
-                <span class="key-hint">↑</span>
-                <span class="key-hint">→</span>
-                <span class="key-hint">↓</span>
-                <span class="key-hint">←</span>
-                or WASD to move
-            </p>
-            <p style="margin-top: 10px; font-size: 14px;">
-                <span style="color: #ffd700;">⭐ Power-up: +15</span> | 
-                <span style="color: #d32f2f;">💥 Trap: -20</span> | 
-                <span style="color: #9c27b0;">🚩 Checkpoint: +10</span> | 
-                <span style="color: #666;">Wall: -5</span>
-            </p>
-        </div>
-        
-        <div id="stats">
-            <div class="stat">
-                <div class="stat-label">🤖 AI Episode</div>
-                <div class="stat-value" id="episode">0</div>
-            </div>
-            <div class="stat">
-                <div class="stat-label">🤖 AI Steps</div>
-                <div class="stat-value" id="steps">0</div>
-            </div>
-            <div class="stat">
-                <div class="stat-label">🤖 Epsilon</div>
-                <div class="stat-value" id="epsilon">1.00</div>
-            </div>
-            <div class="stat player-stat">
-                <div class="stat-label">👤 Player Steps</div>
-                <div class="stat-value" id="player-steps">0</div>
-            </div>
-            <div class="stat">
-                <div class="stat-label">🤖 AI Wins</div>
-                <div class="stat-value" id="ai-wins">0</div>
-            </div>
-            <div class="stat player-stat">
-                <div class="stat-label">👤 Player Wins</div>
-                <div class="stat-value" id="player-wins">0</div>
-            </div>
-        </div>
-        
-        <div id="maze-container">
-            <div id="maze" class="maze-grid"></div>
-        </div>
-        
-        <div id="controls">
-            <button onclick="startTraining()">🤖 Start AI Training</button>
-            <button onclick="stopTraining()">⏸ Stop Training</button>
-            <button onclick="startRace()">🏁 Start Race!</button>
-            <button onclick="resetEnvironment()">🔄 Reset</button>
-        </div>
-        
-        <div id="log"></div>
-        
-        <script>
-            const ws = new WebSocket(`ws://${window.location.host}/ws`);
-            let training = false;
-            let racing = false;
-            let playerSteps = 0;
-            let aiWins = 0;
-            let playerWins = 0;
-            
-            ws.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                
-                if (data.type === 'state') {
-                    renderMaze(data.maze, data.agent_pos, data.player_pos);
-                    updateStats(data.stats);
-                } else if (data.type === 'log') {
-                    addLog(data.message, data.player);
-                } else if (data.type === 'win') {
-                    handleWin(data.winner);
-                }
-            };
-            
-            // Keyboard controls for player
-            document.addEventListener('keydown', function(e) {
-                if (!racing) return;
-                
-                let action = null;
-                if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
-                    action = 0;
-                } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
-                    action = 1;
-                } else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') {
-                    action = 2;
-                } else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
-                    action = 3;
-                }
-                
-                if (action !== null) {
-                    e.preventDefault();
-                    playerSteps++;
-                    document.getElementById('player-steps').textContent = playerSteps;
-                    ws.send(JSON.stringify({action: 'player_move', direction: action}));
-                }
-            });
-            
-            function renderMaze(maze, agentPos, playerPos) {
-                const mazeDiv = document.getElementById('maze');
-                mazeDiv.style.gridTemplateColumns = `repeat(${maze.length}, 50px)`;
-                mazeDiv.innerHTML = '';
-                
-                maze.forEach((row, i) => {
-                    row.forEach((cell, j) => {
-                        const cellDiv = document.createElement('div');
-                        cellDiv.className = 'cell';
-                        
-                        const hasAgent = agentPos[0] === i && agentPos[1] === j;
-                        const hasPlayer = playerPos[0] === i && playerPos[1] === j;
-                        
-                        if (hasAgent && hasPlayer) {
-                            cellDiv.className += ' both-sprites';
-                        } else if (hasAgent) {
-                            cellDiv.className += ' agent';
-                        } else if (hasPlayer) {
-                            cellDiv.className += ' player';
-                        } else if (cell === 0) {
-                            cellDiv.className += ' path';
-                        } else if (cell === 1) {
-                            cellDiv.className += ' wall';
-                        } else if (cell === 2) {
-                            cellDiv.className += ' start';
-                        } else if (cell === 3) {
-                            cellDiv.className += ' goal';
-                        } else if (cell === 4) {
-                            cellDiv.className += ' trap';
-                        } else if (cell === 5) {
-                            cellDiv.className += ' powerup';
-                        } else if (cell === 6) {
-                            cellDiv.className += ' checkpoint';
-                        }
-                        
-                        mazeDiv.appendChild(cellDiv);
-                    });
-                });
-            }
-            
-            function updateStats(stats) {
-                document.getElementById('episode').textContent = stats.episode;
-                document.getElementById('steps').textContent = stats.steps;
-                document.getElementById('epsilon').textContent = stats.epsilon.toFixed(3);
-            }
-            
-            function addLog(message, isPlayer = false) {
-                const logDiv = document.getElementById('log');
-                const entry = document.createElement('div');
-                entry.className = 'log-entry' + (isPlayer ? ' log-player' : '');
-                const icon = isPlayer ? '👤' : '🤖';
-                entry.textContent = `[${new Date().toLocaleTimeString()}] ${icon} ${message}`;
-                logDiv.appendChild(entry);
-                logDiv.scrollTop = logDiv.scrollHeight;
-            }
-            
-            function handleWin(winner) {
-                racing = false;
-                const entry = document.createElement('div');
-                entry.className = 'log-entry log-win';
-                
-                if (winner === 'player') {
-                    playerWins++;
-                    entry.textContent = `[${new Date().toLocaleTimeString()}] 🏆 PLAYER WINS in ${playerSteps} steps!`;
-                    document.getElementById('player-wins').textContent = playerWins;
-                } else {
-                    aiWins++;
-                    entry.textContent = `[${new Date().toLocaleTimeString()}] 🏆 AI WINS!`;
-                    document.getElementById('ai-wins').textContent = aiWins;
-                }
-                
-                document.getElementById('log').appendChild(entry);
-                document.getElementById('log').scrollTop = document.getElementById('log').scrollHeight;
-            }
-            
-            function startTraining() {
-                ws.send(JSON.stringify({action: 'train'}));
-                addLog('Training started...');
-                training = true;
-                racing = false;
-            }
-            
-            function stopTraining() {
-                ws.send(JSON.stringify({action: 'stop'}));
-                addLog('Training stopped');
-                training = false;
-            }
-            
-            function startRace() {
-                ws.send(JSON.stringify({action: 'race'}));
-                addLog('Race started! Use arrow keys or WASD to move!', true);
-                racing = true;
-                training = false;
-                playerSteps = 0;
-                document.getElementById('player-steps').textContent = playerSteps;
-            }
-            
-            function resetEnvironment() {
-                ws.send(JSON.stringify({action: 'reset'}));
-                addLog('Environment reset');
-                racing = false;
-                training = false;
-                playerSteps = 0;
-                document.getElementById('player-steps').textContent = playerSteps;
-            }
-        </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
+async def get_root():
+    return FileResponse("static/index.html")
 
 
 @app.websocket("/ws")

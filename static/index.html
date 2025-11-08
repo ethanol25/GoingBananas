@@ -1,29 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Q-Learning Maze Game</title>
+    <title>Going Bananas</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>🎮 Q-Learning Maze Game</h1>
+    <h1>Going Bananas</h1>
+    
     
     <div id="stats">
         <div class="stat">
-            <div class="stat-label">Episode</div>
-            <div class="stat-value" id="episode">0</div>
+            <div class="stat-label">AI ITERATION: <span id="episode">0</span></div>
+            <div class="stat-value" id="difficulty">HARD</div>
         </div>
         <div class="stat">
-            <div class="stat-label">Steps</div>
+            <div class="stat-label">AI Score</div>
             <div class="stat-value" id="steps">0</div>
         </div>
-        <div class="stat">
-            <div class="stat-label">Epsilon</div>
-            <div class="stat-value" id="epsilon">1.00</div>
+
+        <div class="stat player-stat">
+            <div class="stat-label">Your Score</div>
+            <div class="stat-value" id="player-steps">0</div>
         </div>
-        <div class="stat">
-            <div class="stat-label">Reward</div>
-            <div class="stat-value" id="reward">0</div>
-        </div>
+
     </div>
     
     <div id="maze-container">
@@ -31,14 +30,14 @@
     </div>
     
     <div id="controls">
-        <button onclick="startTraining()">Start Training</button>
-        <button onclick="stopTraining()">Stop Training</button>
-        <button onclick="testAgent()">Test Agent</button>
-        <button onclick="resetEnvironment()">Reset</button>
+        <button onclick="startTraining()">🤖 Start AI Training</button>
+        <button onclick="stopTraining()">⏸ Stop Training</button>
+        <button onclick="startRace()">🏁 Start Race!</button>
+        <button onclick="resetEnvironment()">🔄 Reset</button>
     </div>
     
     <div id="log"></div>
     
-    <script src="/static/game.js" defer></script>
+    <script src="/static/game.js"></script>
 </body>
 </html>

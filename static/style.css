@@ -1,18 +1,30 @@
-/* static/style.css */
+@import url('https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap');
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Luckiest Guy';
     display: flex;
     flex-direction: column;
     align-items: center;
-    background: #1a1a2e;
+    background: linear-gradient(180deg, #91CB3E 0%, #53A548 50%, #4C934C 75%, #244F26 100%);
     color: #eee;
     margin: 0;
     padding: 20px;
-    font-size: 16px; /* Added for responsiveness */
 }
+
 h1 {
-    color: #00d4ff;
+    font-family: 'Luckiest Guy';
+    font-style: normal;
+    font-weight: 400;
+    font-size: 4em;
+
+    background: linear-gradient(180deg, #FFFFFF -60%, #FFCF30 65.71%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+
+    -webkit-text-stroke: 1px #775253;
+
 }
+
 #maze-container {
     display: inline-block;
     border: 3px solid #00d4ff;
@@ -37,17 +49,49 @@ h1 {
     font-size: 24px;
     border-radius: 4px;
     transition: all 0.3s;
+    position: relative;
 }
 .path { background: #2a2a4e; }
 .wall { background: #0f3460; border: 2px solid #1a1a3e; }
 .start { background: #4caf50; }
 .goal { background: #ff5722; }
-/* This is for the banana, tile 4 */
-.banana { background: #f9e79f; } 
-.agent { background: #00d4ff; position: relative; }
+
+/* Updated for Banana (type 4) */
+.banana {
+    background: #ffd700;
+    animation: glow 1.5s infinite;
+}
+.banana::before {
+    content: '🍌';
+    font-size: 28px;
+}
+
+.agent { 
+    background: #00d4ff;
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
+}
 .agent::after {
     content: '🤖';
     font-size: 32px;
+    position: absolute;
+}
+.player {
+    background: #ffd700;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+}
+.player::after {
+    content: '👤';
+    font-size: 32px;
+    position: absolute;
+}
+.both-sprites {
+    background: linear-gradient(135deg, #00d4ff 50%, #ffd700 50%);
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+}
+.both-sprites::after {
+    content: '🤖👤';
+    font-size: 24px;
+    position: absolute;
 }
 #controls {
     margin: 20px;
@@ -77,29 +121,38 @@ button:disabled {
     cursor: not-allowed;
     transform: none;
 }
+.player-button {
+    background: #ffd700;
+}
+.player-button:hover {
+    background: #ffed4e;
+}
 #stats {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 15px;
     width: 100%;
-    max-width: 600px;
+    max-width: 800px;
     margin: 20px 0;
 }
 .stat {
-    background: #16213e;
-    padding: 15px;
-    border-radius: 8px;
-    border: 2px solid #0f3460;
+    background: #775253;
+    padding: 10px;
+    border-radius: 5px;
+    border: 2px solid black;
 }
 .stat-label {
-    color: #888;
-    font-size: 12px;
-    text-transform: uppercase;
+    -webkit-text-stroke: 1px black;
+    color: white;
+    font-size: 20px;
 }
 .stat-value {
     color: #00d4ff;
     font-size: 24px;
     font-weight: bold;
+}
+.player-stat .stat-value {
+    color: #ffd700;
 }
 #log {
     background: #16213e;
@@ -107,7 +160,7 @@ button:disabled {
     border-radius: 8px;
     padding: 15px;
     width: 100%;
-    max-width: 600px;
+    max-width: 800px;
     height: 150px;
     overflow-y: auto;
     font-family: monospace;
@@ -118,4 +171,33 @@ button:disabled {
     padding: 5px;
     border-left: 3px solid #00d4ff;
     padding-left: 10px;
+}
+.log-player {
+    border-left-color: #ffd700;
+}
+.log-win {
+    border-left-color: #4caf50;
+    background: rgba(76, 175, 80, 0.1);
+}
+.controls-help {
+    background: #16213e;
+    border: 2px solid #0f3460;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+    max-width: 800px;
+    text-align: center;
+}
+.controls-help h3 {
+    color: #ffd700;
+    margin-top: 0;
+}
+.key-hint {
+    display: inline-block;
+    background: #0f3460;
+    padding: 5px 10px;
+    border-radius: 4px;
+    margin: 0 5px;
+    font-weight: bold;
+    color: #ffd700;
 }
