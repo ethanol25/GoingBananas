@@ -34,7 +34,7 @@ class MazeEnv(gym.Env):
             [b, b, b, 1, b, 1, 1, b],
             [b, 1, b, b, b, b, 1, b],
             [b, 1, 1, 1, b, b, b, 3],
-        ], dtype=object)
+        ], dtype=object) # Enables functions to run
         
         self.start_pos = (0, 0)
         self.goal_pos = (7, 7)
@@ -66,6 +66,7 @@ class MazeEnv(gym.Env):
         reward = -0.1  # Small penalty for each step
         terminated = False
         
+        # Reward for Agent reaching the end
         if tuple(self.agent_pos) == self.goal_pos:
             reward = 100
             terminated = True
