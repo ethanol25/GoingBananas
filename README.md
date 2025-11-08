@@ -1,8 +1,6 @@
 # 🍌 Are you going Bananas?
 An Evil Monkey has stolen your bananas, but most importantly, your beautiful banana queen. He is learning the forest as we speak! You must save her, and collect as many bananas as possible! Race against Evil Monkey powered by Q-learning. Built with FastAPI, WebSockets, and Gymnasium, this game has you race against a reinforcement learning agent!
 
-## 🌟 Features
-
 ## 🤖 Evil Monkey (AI Agent)
 
 **Q-Learning Algorithm:** Implements tabular Q-learning with epsilon-greedy exploration
@@ -21,8 +19,6 @@ An Evil Monkey has stolen your bananas, but most importantly, your beautiful ban
 | Element          | Reward | Description                |
 | ---------------- | ------ | -------------------------- |
 | ⭐ Power-up       | +15    | Collectible bonus items    |
-| 💥 Trap          | -20    | Dangerous cells to avoid   |
-| 🚩 Checkpoint    | +10    | One-time milestone rewards |
 | 🏆 Goal          | +100   | Reach the destination      |
 | 🏃 Speed Bonus   | +20    | Complete in under 50 steps |
 | 🧱 Wall Hit      | -5     | Collision penalty          |
@@ -30,7 +26,7 @@ An Evil Monkey has stolen your bananas, but most importantly, your beautiful ban
 | 📏 Distance      | ±0.5   | Move closer/away from goal |
 | ⏱️ Time Pressure | -0.5   | After 100 steps            |
 
-##🚀 Installation
+## 🚀 Installation
 
 Install Dependencies
 pip install fastapi uvicorn gymnasium numpy websockets
@@ -42,15 +38,15 @@ python something.py
 The server will start on http://localhost:8000
 
 Train the AI
-Click "🤖 Start AI Training" to begin Q-learning
-Watch the AI navigate through randomly generated mazes
-Monitor statistics: Episode count, Steps, Epsilon value
-Click "⏸ Stop Training" when satisfied with performance
-Race Against the AI
-After training, click "🏁 Start Race!"
-Use arrow keys or WASD to move your sprite (👤)
-Try to reach the goal (🔴) before the AI (🤖)
-First to reach the goal wins!
+* Click "🤖 Start AI Training" to begin Q-learning
+* Watch the AI navigate through randomly generated mazes
+* Monitor statistics: Episode count, Steps, Epsilon value
+* Click "⏸ Stop Training" when satisfied with performance
+* Race Against the AI
+* After training, click "🏁 Start Race!"
+* Use arrow keys or WASD to move your sprite (👤)
+* Try to reach the goal (🔴) before the AI (🤖)
+* First to reach the goal wins!
 
 ## 📊 Statistics Tracked
 
