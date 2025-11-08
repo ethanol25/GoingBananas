@@ -51,6 +51,8 @@ class MazeEnv(gym.Env):
         self.visited_cells = set()
         self.checkpoints = set()
         self.total_steps = 0
+        self.player_score = 0
+        self.agent_score = 0
         return self._get_state(), {}
     
     def _get_state(self):
@@ -62,8 +64,10 @@ class MazeEnv(gym.Env):
         
         if is_player:
             pos = self.player_pos
+            visited = self.player_visited_cells
         else:
             pos = self.agent_pos
+            visited = self.visited_cells
             
         new_pos = [
             pos[0] + moves[action][0],
@@ -133,6 +137,15 @@ class MazeEnv(gym.Env):
         # Time penalty (encourages faster solutions)
         if self.total_steps > 100:
             reward -= 0.5
+
+        # Update scores
+        if is_player:
+            self.player_score += reward
+        else:
+            self.agent_score += reward
+        
+        info['player_score'] = self.player_score
+        info['agent_score'] = self.agent_score
         
         return self._get_state(), reward, terminated, False, info
     
@@ -204,6 +217,8 @@ async def websocket_endpoint(websocket: WebSocket):
             "maze": maze_state["maze"],
             "agent_pos": maze_state["agent_pos"],
             "player_pos": maze_state["player_pos"],
+            "player_score": 0,
+            "agent_score": 0,
             "stats": {
                 "episode": episode,
                 "steps": steps,
@@ -227,6 +242,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif data["action"] == "stop":
                     training = False
                     racing = False
+
                 elif data["action"] == "race":
                     # Start race mode
                     racing = True
@@ -240,6 +256,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         "maze": maze_state["maze"],
                         "agent_pos": maze_state["agent_pos"],
                         "player_pos": maze_state["player_pos"],
+                        "player_score": env.player_score,
+                        "agent_score": env.agent_score,
                         "stats": {
                             "episode": episode,
                             "steps": steps,
@@ -268,6 +286,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             "maze": maze_state["maze"],
                             "agent_pos": maze_state["agent_pos"],
                             "player_pos": maze_state["player_pos"],
+                            "player_score": env.player_score,
+                            "agent_score": env.agent_score,
                             "stats": {
                                 "episode": episode,
                                 "steps": steps,
@@ -297,6 +317,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         "maze": maze_state["maze"],
                         "agent_pos": maze_state["agent_pos"],
                         "player_pos": maze_state["player_pos"],
+                        "player_score": env.player_score,
+                        "agent_score": env.agent_score,
                         "stats": {
                             "episode": episode,
                             "steps": steps,
@@ -335,6 +357,8 @@ async def websocket_endpoint(websocket: WebSocket):
                             "maze": maze_state["maze"],
                             "agent_pos": maze_state["agent_pos"],
                             "player_pos": maze_state["player_pos"],
+                            "player_score": env.player_score,
+                            "agent_score": env.agent_score,
                             "stats": {
                                 "episode": episode,
                                 "steps": steps,
@@ -342,7 +366,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                 "total_reward": total_reward
                             }
                         })
-                        await asyncio.sleep(0.05)
+                        await asyncio.sleep(0.005)
                 
                 agent.decay_epsilon()
                 
@@ -390,7 +414,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "winner": "ai"
                     })
                 
-                await asyncio.sleep(0.2)  # AI moves slower for fair competition
+                await asyncio.sleep(0.35)  # AI moves slower for fair competition
             else:
                 await asyncio.sleep(0.1)
                 
