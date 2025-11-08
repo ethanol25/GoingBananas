@@ -5,16 +5,16 @@ An Evil Monkey has stolen your bananas, but most importantly, your beautiful ban
 
 ## 🤖 Evil Monkey (AI Agent)
 
-Q-Learning Algorithm: Implements tabular Q-learning with epsilon-greedy exploration
-Real-time Training Visualization: Watch the Evil Monkey learn optimal paths through the maze
-Dynamic Learning: Epsilon decay strategy for exploration-exploitation balance
+**Q-Learning Algorithm:** Implements tabular Q-learning with epsilon-greedy exploration
+**Real-time Training Visualization:** Watch the Evil Monkey learn optimal paths through the maze
+**Dynamic Learning:** Epsilon decay strategy for exploration-exploitation balance
 
 ## 🎯 Interactive Gameplay
 
-Human vs Evil Monkey: Compete against the toughened Evil Monkey
-Keyboard Controls: Use arrow keys (↑→↓←) or WASD to navigate
-Real-time Feedback: See both sprites move simultaneously via WebSockets
-Win Tracking: Keeps score of Evil Monkey wins vs Player wins
+**Human vs Evil Monkey:** Compete against the toughened Evil Monkey
+**Keyboard Controls:** Use arrow keys (↑→↓←) or WASD to navigate
+**Real-time Feedback:** See both sprites move simultaneously via WebSockets
+**Win Tracking:** Keeps score of Evil Monkey wins vs Player wins
 
 ## 🎁 Reward System
 
@@ -26,7 +26,6 @@ Win Tracking: Keeps score of Evil Monkey wins vs Player wins
 | 🏆 Goal          | +100   | Reach the destination      |
 | 🏃 Speed Bonus   | +20    | Complete in under 50 steps |
 | 🧱 Wall Hit      | -5     | Collision penalty          |
-| 🚫 Out of Bounds | -10    | Border violation           |
 | 📍 Exploration   | +1     | Visit new cells            |
 | 📏 Distance      | ±0.5   | Move closer/away from goal |
 | ⏱️ Time Pressure | -0.5   | After 100 steps            |
@@ -41,6 +40,7 @@ pip install fastapi uvicorn gymnasium numpy websockets
 Start the Server
 python something.py
 The server will start on http://localhost:8000
+
 Train the AI
 Click "🤖 Start AI Training" to begin Q-learning
 Watch the AI navigate through randomly generated mazes
@@ -54,11 +54,11 @@ First to reach the goal wins!
 
 ## 📊 Statistics Tracked
 
-Episode: Current training iteration
-Steps: Moves taken in current episode/race
-Epsilon: Current exploration rate (training only)
-Player Steps: Human player move count
-AI Wins: Number of AI victories
-Player Wins: Number of human victories
+**Episode:** Current training iteration
+**Steps:** Moves taken in current episode/race
+**Epsilon:** Current exploration rate (training only)
+**Player Steps:** Human player move count
+**AI Wins:** Number of AI victories
+**Player Wins:** Number of human victories
 
 Happy Racing! 🏁
