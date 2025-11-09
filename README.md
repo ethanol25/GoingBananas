@@ -30,9 +30,9 @@ An Evil Monkey has stolen your bananas, but most importantly, your beautiful ban
 pip install fastapi uvicorn gymnasium numpy websockets
 
 ## 💻 Usage
-Start the Server
-python something.py
-The server will start on http://localhost:8000
+* Start the Server
+* python maze_user.py
+* The server will start on http://localhost:8000
 
 ## 🐒 Train the Evil Monkey
 * Click "🐒 Start Evil Monkey Training" to begin Q-learning
@@ -47,11 +47,11 @@ The server will start on http://localhost:8000
 
 ## 📊 Stats Tracked
 
-**Episode:** Current training iteration
-**Steps:** Moves taken in current episode/race
-**Epsilon:** Current exploration rate (training only)
-**Player Steps:** Player move count
-**Evil Monkey Wins:** Number of Evil Monkey victories
-**Player Wins:** Number of human victories
+* **Episode:** Current training iteration
+* **Steps:** Moves taken in current episode/race
+* **Epsilon:** Current exploration rate (training only)
+* **Player Steps:** Player move count
+* **Evil Monkey Wins:** Number of Evil Monkey victories
+* **Player Wins:** Number of human victories
 
 Happy Racing! 🏁
