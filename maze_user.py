@@ -6,7 +6,7 @@ from gymnasium import spaces
 import numpy as np
 import json
 import asyncio
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -165,6 +165,7 @@ class QLearningAgent:
         self.epsilon = 1.0
         self.epsilon_decay = 0.995
         self.min_epsilon = 0.01
+        self.is_pretrained = False
         
     def get_action(self, state, training=True):
         if training and np.random.random() < self.epsilon:
@@ -183,21 +184,65 @@ class QLearningAgent:
     def decay_epsilon(self):
         self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
 
+    def save_model(self, path="model.npy"):
+        np.save(path, self.q_table)
+    
+    def load_model(self, path="model.npy"):
+        try:
+            self.q_table = np.load(path)
+            self.is_pretrained = True
+            return True
+        except:
+            return False
 
 # Global instances
 env = MazeEnv()
 agent = QLearningAgent(env.observation_space.n, env.action_space.n)
+pretraining_task: Optional[asyncio.Task] = None
 
 
 @app.get("/")
 async def get_root():
     return FileResponse("static/index.html")
 
+# Pre-training function
+async def pretrain_agent(episodes=1000, report_interval=100):
+    """Pre-train the agent before user interactions"""
+    global agent
+    
+    print(f"Starting pre-training for {episodes} episodes...")
+    
+    for episode in range(episodes):
+        state = env.reset()
+        total_reward = 0
+        steps = 0
+        
+        while True:
+            action = agent.select_action(state, training=True)
+            next_state, reward, done = env.step(action)
+            agent.update(state, action, reward, next_state)
+            
+            total_reward += reward
+            steps += 1
+            state = next_state
+            
+            if done:
+                break
+            
+            # Allow other tasks to run
+            await asyncio.sleep(0)
+        
+        if (episode + 1) % report_interval == 0:
+            print(f"Episode {episode + 1}/{episodes} - Reward: {total_reward:.2f}, Steps: {steps}")
+    
+    agent.is_pretrained = True
+    agent.save_model()
+    print("Pre-training complete! Model saved.")
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    
 
     episode = 0
     total_reward = 0
@@ -212,6 +257,7 @@ async def websocket_endpoint(websocket: WebSocket):
         maze_state = env.get_maze_state()
         await websocket.send_json({
             "type": "state",
+            "pretrained": agent.is_pretrained, 
             "maze": maze_state["maze"],
             "agent_pos": maze_state["agent_pos"],
             "player_pos": maze_state["player_pos"],
@@ -230,7 +276,7 @@ async def websocket_endpoint(websocket: WebSocket):
             try:
                 data = await asyncio.wait_for(websocket.receive_json(), timeout=0.1)
 
-                if data["action"] == "start_auto_train":
+                if data["action"] == "start_auto_train": # I don't think this ever sends...
                     training = False 
                     racing = False
                     
@@ -275,7 +321,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                     "total_reward": total_reward
                                 }
                             })
-                            await asyncio.sleep(0.01) # Give websocket time to send
+                            await asyncio.sleep(0.1) # Give websocket time to send
                     
                     # --- THIS SENDS THE MESSAGE TO THE JS ---
                     print("!!! TRAINING COMPLETE. SENDING MESSAGE. !!!")
@@ -320,7 +366,6 @@ async def websocket_endpoint(websocket: WebSocket):
                         # Move player
                         direction = data["direction"]
                         _, reward, terminated, _, info = env.step(direction, is_player=True)
-                        
                         # Send message if there's feedback
                         if 'message' in info and info['message']:
                             await websocket.send_json({
@@ -465,7 +510,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "winner": "ai"
                     })
                 
-                await asyncio.sleep(0.35)  # AI moves slower for fair competition
+                await asyncio.sleep(0.5)  # AI moves slower for fair competition
             else:
                 await asyncio.sleep(0.1)
                 
