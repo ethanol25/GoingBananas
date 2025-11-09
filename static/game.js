@@ -208,6 +208,7 @@ function handleWin(winner) {
     // Alert the user
     alert(winMessage + `\n\nPress OK to advance to the next level.`);
 
+
     // --- THIS IS THE KEY CHANGE ---
     // Go back to the "Ready" screen to prepare for the next level.
     // We DO NOT send 'reset' here.
