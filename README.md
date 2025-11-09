@@ -18,7 +18,7 @@ An Evil Monkey has stolen your bananas, but most importantly, your beautiful ban
 
 | Element          | Reward | Description                |
 | ---------------- | ------ | -------------------------- |
-| 🍌 Banana       | +15    | Collectible bonus items    |
+| 🍌 Banana       | +50    | Collectible bonus items    |
 | 🏆 Goal          | +100   | Reach the destination      |
 | 🏃 Speed Bonus   | +20    | Complete in under 50 steps |
 | 🧱 Wall Hit      | -5     | Collision penalty          |
@@ -30,28 +30,14 @@ An Evil Monkey has stolen your bananas, but most importantly, your beautiful ban
 pip install fastapi uvicorn gymnasium numpy websockets
 
 ## 💻 Usage
-* Start the Server
-* python maze_user.py
+* run python maze_user.py
 * The server will start on http://localhost:8000
 
 ## 🐒 Train the Evil Monkey
-* Click "🐒 Start Evil Monkey Training" to begin Q-learning
 * Watch the Evil Monkey navigate through randomly generated mazes
-* Monitor statistics: Episode count, Steps, Epsilon value
-* Click "⏸ Stop Training" when satisfied with performance
-* Race Against the Evil Monkey
-* After training, click "🏁 Start Race!"
+* Race Against the Evil Monkey after it trains
 * Use arrow keys/WASD to move your sprite 
 * Try to reach the goal before the Evil Monkey
 * First to reach the goal wins!
-
-## 📊 Stats Tracked
-
-* **Episode:** Current training iteration
-* **Steps:** Moves taken in current episode/race
-* **Epsilon:** Current exploration rate (training only)
-* **Player Steps:** Player move count
-* **Evil Monkey Wins:** Number of Evil Monkey victories
-* **Player Wins:** Number of human victories
 
 Happy Racing! 🏁
