@@ -62,12 +62,7 @@ class MazeEnv(gym.Env):
         # Actions: 0=Up, 1=Right, 2=Down, 3=Left
         moves = [(-1, 0), (0, 1), (1, 0), (0, -1)]
         
-        if is_player:
-            pos = self.player_pos
-            visited = self.player_visited_cells
-        else:
-            pos = self.agent_pos
-            visited = self.visited_cells
+        pos = self.player_pos if is_player else self.agent_pos
             
         new_pos = [
             pos[0] + moves[action][0],
@@ -203,11 +198,14 @@ async def get_root():
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     
+
     episode = 0
     total_reward = 0
     steps = 0
     training = False
     racing = False
+    AUTO_TRAIN_EPISODES = 100
+    AUTO_TRAIN_VISUAL_UPDATE_RATE = 1
     
     try:
         # Send initial state
@@ -231,8 +229,59 @@ async def websocket_endpoint(websocket: WebSocket):
             # Receive commands from client
             try:
                 data = await asyncio.wait_for(websocket.receive_json(), timeout=0.1)
+
+                if data["action"] == "start_auto_train":
+                    training = False 
+                    racing = False
+                    
+                    await websocket.send_json({
+                        "type": "log",
+                        "message": f"Starting auto-training for {AUTO_TRAIN_EPISODES} episodes..."
+                    })
+                    
+                    for ep in range(AUTO_TRAIN_EPISODES):
+                        state, _ = env.reset()
+                        done = False
+                        episode += 1
+                        total_reward = 0
+                        steps = 0
+                        
+                        while not done and steps < 200:
+                            action = agent.get_action(state, training=True)
+                            next_state, reward, terminated, truncated, _ = env.step(action)
+                            done = terminated or truncated
+                            agent.update(state, action, reward, next_state)
+                            
+                            total_reward += reward
+                            steps += 1
+                            state = next_state
+                        
+                        agent.decay_epsilon()
+                        
+                        # Send a visual update periodically
+                        if ep % AUTO_TRAIN_VISUAL_UPDATE_RATE == 0:
+                            maze_state = env.get_maze_state()
+                            await websocket.send_json({
+                                "type": "state",
+                                "maze": maze_state["maze"],
+                                "agent_pos": maze_state["agent_pos"],
+                                "player_pos": maze_state["player_pos"],
+                                "player_score": env.player_score, # <-- This is at the top level
+                                "agent_score": env.agent_score, # <-- This is at the top level
+                                "stats": {
+                                    "episode": episode,
+                                    "steps": steps,
+                                    "epsilon": agent.epsilon,
+                                    "total_reward": total_reward
+                                }
+                            })
+                            await asyncio.sleep(0.01) # Give websocket time to send
+                    
+                    # --- THIS SENDS THE MESSAGE TO THE JS ---
+                    print("!!! TRAINING COMPLETE. SENDING MESSAGE. !!!")
+                    await websocket.send_json({"type": "training_complete"})
                 
-                if data["action"] == "train":
+                elif data["action"] == "train":
                     training = True
                     racing = False
                     await websocket.send_json({
@@ -399,6 +448,8 @@ async def websocket_endpoint(websocket: WebSocket):
                     "maze": maze_state["maze"],
                     "agent_pos": maze_state["agent_pos"],
                     "player_pos": maze_state["player_pos"],
+                    "player_score": env.player_score, # <-- This is at the top level
+                    "agent_score": env.agent_score, # <-- This is at the top level
                     "stats": {
                         "episode": episode,
                         "steps": steps,
