@@ -215,13 +215,17 @@ function handleWin(winner) {
     racing = false;
 
     if (winner === 'player') {
-        playerWins++; // This is now a "win count", not live score
+        playerWins++;
         winMessage = `🏆 PLAYER WINS!`;
         document.getElementById('player-wins').textContent = playerWins;
-    } else {
-        aiWins++; // This is now a "win count"
+    } else if (winner === 'ai') {
+        aiWins++;
         winMessage = `🏆 AI WINS!`;
         document.getElementById('ai-wins').textContent = aiWins;
+    } else {
+        // --- NEW: Handle the "draw" case ---
+        winMessage = `💥 IT'S A DRAW!`;
+        // We don't increment either score
     }
 
     addLog(winMessage);
@@ -229,10 +233,7 @@ function handleWin(winner) {
     // Alert the user
     alert(winMessage + `\n\nPress OK to advance to the next level.`);
 
-
-    // --- THIS IS THE KEY CHANGE ---
-    // Go back to the "Ready" screen to prepare for the next level.
-    // We DO NOT send 'reset' here.
+    // Go back to the "Ready" screen
     showMainContent('ready-content');
 }
 

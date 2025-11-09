@@ -360,38 +360,44 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 # 1. Player moves
                 direction = data["direction"]
-                _, reward_p, terminated_p, _, info_p = user_env.step(direction, is_player=True)
-                
+                _, _, terminated_p, _, info_p = user_env.step(direction, is_player=True)
                 if 'message' in info_p and info_p['message']:
                     await websocket.send_json({"type": "log", "message": info_p['message'], "player": True})
-                
-                if terminated_p:
-                    # Player won
-                    await websocket.send_json({"type": "win", "winner": "player"})
-                    # --- FIX: Stop processing this move ---
-                    continue 
-                
-                # 2. AI moves immediately after (if player didn't win)
-                action_ai = global_agent.get_action(user_env._get_state(), training=False)
-                _, reward_ai, terminated_ai, _, info_ai = user_env.step(action_ai, is_player=False)
-                
-                if terminated_ai:
-                    # AI won
-                    await websocket.send_json({"type": "win", "winner": "ai"})
-                    # --- FIX: Stop processing this move ---
-                    continue 
 
-                # 3. Send state update ONLY if game is still active
-                maze_state = user_env.get_maze_state()
-                await websocket.send_json({
-                    "type": "state", "maze": maze_state["maze"],
-                    "agent_pos": user_env.agent_pos, # AI's new position
-                    "player_pos": user_env.player_pos, # Player's new position
-                    "stats": {
-                        "episode": stats["episode"], "steps": stats["steps"], "epsilon": global_agent.epsilon,
-                        "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
-                    }
-                })
+                # 2. AI moves (even if player just won, to check for a draw)
+                action_ai = global_agent.get_action(user_env._get_state(), training=False)
+                _, _, terminated_ai, _, info_ai = user_env.step(action_ai, is_player=False)
+                
+                # 3. Now, check the results
+                if terminated_p and terminated_ai:
+                    # --- NEW TIE-BREAKER LOGIC ---
+                    # Both reached the goal, check score
+                    if user_env.agent_score > user_env.player_score:
+                        await websocket.send_json({"type": "win", "winner": "ai"})
+                    elif user_env.player_score > user_env.agent_score:
+                        await websocket.send_json({"type": "win", "winner": "player"})
+                    else:
+                        # Scores are identical, it's a true draw
+                        await websocket.send_json({"type": "win", "winner": "draw"})
+                    
+                elif terminated_p:
+                    # Only player won
+                    await websocket.send_json({"type": "win", "winner": "player"})
+                elif terminated_ai:
+                    # Only AI won
+                    await websocket.send_json({"type": "win", "winner": "ai"})
+                else:
+                    # 4. No one won, send normal state update
+                    maze_state = user_env.get_maze_state()
+                    await websocket.send_json({
+                        "type": "state", "maze": maze_state["maze"],
+                        "agent_pos": user_env.agent_pos,
+                        "player_pos": user_env.player_pos,
+                        "stats": {
+                            "episode": stats["episode"], "steps": stats["steps"], "epsilon": global_agent.epsilon,
+                            "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
+                        }
+                    })
                         
             elif data["action"] == "reset":
                 state, _ = user_env.reset()
