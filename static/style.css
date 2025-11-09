@@ -183,31 +183,21 @@ h1 {
     padding: 0;
     width: 100%;
     height: 100%;
-    gap: 1px; /* Tighter grid */
+    gap: 0px; /* Tighter grid */
     background: #0f3460;
-    border-radius: 5px;
     /* display: grid; (already set by JS) */
 }
 .cell {
+    background-image: url('/static/assets/low_res/sprite-path.png');
     position: relative;
     background-size: cover;
     background-repeat: no-repeat;
     background-position: center;
 
-    width: 46px;
-    height: 46px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    border-radius: 4px;
-    transition: all 0.3s;
-    position: relative;
+    width: 68px;
+    height: 56px;
+
 }
-.path { background-image: url('/static/assets/low_res/Sand.png')  }
-.wall { background-image: url('/static/assets/low_res/Wall.png') }
-.start { background-image: url('/static/assets/low_res/Grass.png') }
-.goal { background-image: url('/static/assets/low_res/Princess.png') }
 
 .cell img {
     /* This styles all player, agent, and banana sprites */
@@ -219,13 +209,29 @@ h1 {
     object-fit: contain; /* Don't stretch the sprite */
 }
 
-.cell img.agent {
+.cell img.wall,
+.cell img.start,
+.cell img.goal {
+    width: 100%;
+    height: 100%;
+    top: 0;
     left: 0;
+    z-index: 1; /* Stack below entities */
 }
 
-.cell img.player {
-    left: 10%;
+/* --- 2. ENTITY Sprites (top layer) --- */
+/* These are smaller and sit on top */
+.cell img.player,
+.cell img.agent,
+.cell img.banana {
+    width: 90%;
+    height: 90%;
+    top: 5%;
+    left: 5%;
+    z-index: 2; /* Stack on top of tiles */
 }
+
+
 
 /* --- 8. Old/Hidden Element Styles --- */
 #controls {

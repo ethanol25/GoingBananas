@@ -95,12 +95,11 @@ function renderMaze(maze, agentPos, playerPos) {
     mazeDiv.innerHTML = ''; // Clear the old maze
     
     // Define our tile classes
-    const tileMap = {
-        0: 'path',
+    const entityMap = {
         1: 'wall',
         2: 'start',
         3: 'goal',
-        4: 'path' // Bananas (type 4) sit ON a path tile
+        4: 'banana'
     };
 
     maze.forEach((row, i) => {
@@ -108,15 +107,15 @@ function renderMaze(maze, agentPos, playerPos) {
             const cellDiv = document.createElement('div');
             
             // 1. Set the floor class (e.g., "cell path")
-            cellDiv.className = 'cell ' + tileMap[cell];
+            cellDiv.className = 'cell';
             
             // 2. Add entity sprites
             
-            // If it's a banana tile, add a banana sprite
-            if (cell === 4) {
-                cellDiv.appendChild(createEntity('banana'));
+            const entityType = entityMap[cell];
+            if (entityType) {
+                cellDiv.appendChild(createEntity(entityType));
             }
-            
+
             // Check for player and agent
             const hasPlayer = playerPos[0] === i && playerPos[1] === j;
             const hasAgent = agentPos[0] === i && agentPos[1] === j;
