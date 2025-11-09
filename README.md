@@ -1,7 +1,7 @@
-# 🍌 Are you going Bananas?
+# 🍌 Are You Going Bananas?
 An Evil Monkey has stolen your bananas, but most importantly, your beautiful banana queen. He is learning the forest as we speak! You must save her, and collect as many bananas as possible! Race against Evil Monkey powered by Q-learning. Built with FastAPI, WebSockets, and Gymnasium, this game has you race against a reinforcement learning agent!
 
-## 🤖 Evil Monkey (AI Agent)
+## 🐵 Evil Monkey (AI Agent)
 
 **Q-Learning Algorithm:** Implements tabular Q-learning with epsilon-greedy exploration
 **Real-time Training Visualization:** Watch the Evil Monkey learn optimal paths through the maze
@@ -34,24 +34,24 @@ Start the Server
 python something.py
 The server will start on http://localhost:8000
 
-** 🐒 Train the Evil Monkey
+## 🐒 Train the Evil Monkey
 * Click "🐒 Start Evil Monkey Training" to begin Q-learning
-* Watch the AI navigate through randomly generated mazes
+* Watch the Evil Monkey navigate through randomly generated mazes
 * Monitor statistics: Episode count, Steps, Epsilon value
 * Click "⏸ Stop Training" when satisfied with performance
-* Race Against the AI
+* Race Against the Evil Monkey
 * After training, click "🏁 Start Race!"
-* Use arrow keys or WASD to move your sprite 
+* Use arrow keys/WASD to move your sprite 
 * Try to reach the goal before the Evil Monkey
 * First to reach the goal wins!
 
-## 📊 Statistics Tracked
+## 📊 Stats Tracked
 
 **Episode:** Current training iteration
 **Steps:** Moves taken in current episode/race
 **Epsilon:** Current exploration rate (training only)
-**Player Steps:** Human player move count
-**AI Wins:** Number of AI victories
+**Player Steps:** Player move count
+**Evil Monkey Wins:** Number of Evil Monkey victories
 **Player Wins:** Number of human victories
 
 Happy Racing! 🏁
