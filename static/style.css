@@ -189,6 +189,10 @@ h1 {
     /* display: grid; (already set by JS) */
 }
 .cell {
+    position: relative;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
 
     width: 46px;
     height: 46px;
@@ -200,50 +204,27 @@ h1 {
     transition: all 0.3s;
     position: relative;
 }
-.path { background: #2a2a4e; }
-.wall { background: #0f3460; border: 2px solid #1a1a3e; }
-.start { background: #4caf50; }
-.goal { background: #ff5722; }
+.path { background-image: url('/static/assets/low_res/Sand.png')  }
+.wall { background-image: url('/static/assets/low_res/Wall.png') }
+.start { background-image: url('/static/assets/low_res/Grass.png') }
+.goal { background-image: url('/static/assets/low_res/Princess.png') }
 
-.banana {
-    background: #ffd700;
-    animation: glow 1.5s infinite;
-}
-.banana::before {
-    content: '🍌';
-    font-size: 28px;
-}
-@keyframes glow {
-    0%, 100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
-    50% { box-shadow: 0 0 25px rgba(255, 215, 0, 1); }
+.cell img {
+    /* This styles all player, agent, and banana sprites */
+    width: 90%;
+    height: 90%;
+    position: absolute; /* Stack on top of the background tile */
+    top: 5%;
+    left: 5%;
+    object-fit: contain; /* Don't stretch the sprite */
 }
 
-.agent { 
-    background: #00d4ff;
-    box-shadow: 0 0 15px rgba(0, 212, 255, 0.6);
+.cell img.agent {
+    left: 0;
 }
-.agent::after {
-    content: '🤖';
-    font-size: 32px;
-    position: absolute;
-}
-.player {
-    background: #ffd700;
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
-}
-.player::after {
-    content: '👤';
-    font-size: 32px;
-    position: absolute;
-}
-.both-sprites {
-    background: linear-gradient(135deg, #00d4ff 50%, #ffd700 50%);
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
-}
-.both-sprites::after {
-    content: '🤖👤';
-    font-size: 24px;
-    position: absolute;
+
+.cell img.player {
+    left: 10%;
 }
 
 /* --- 8. Old/Hidden Element Styles --- */

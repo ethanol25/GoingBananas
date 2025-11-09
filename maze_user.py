@@ -228,7 +228,6 @@ async def websocket_endpoint(websocket: WebSocket):
     DUMMY_TRAIN_VISUAL_UPDATE_RATE = 1
 
     stats = {"episode": 0, "steps": 0}
-
     
     try:
         # Send initial state

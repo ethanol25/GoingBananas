@@ -79,31 +79,54 @@ document.getElementById('stop-button').onclick = stopTraining;
 document.getElementById('race-button').onclick = startRace;
 document.getElementById('reset-button').onclick = resetEnvironment;
 
+function createEntity(type) {
+    const img = document.createElement('img');
+    img.src = `/static/assets/low_res/sprite-${type}.png`;
+    img.className = type; // e.g., class="agent"
+    return img;
+}
 
 // --- Maze & Game Logic ---
 function renderMaze(maze, agentPos, playerPos) {
     const mazeDiv = document.getElementById('maze');
-    if (!mazeDiv) return; // Failsafe
+    if (!mazeDiv) return;
     
-    mazeDiv.style.gridTemplateColumns = `repeat(${maze.length}, 1fr)`; // Use fractional units
-    mazeDiv.innerHTML = '';
+    mazeDiv.style.gridTemplateColumns = `repeat(${maze.length}, 1fr)`;
+    mazeDiv.innerHTML = ''; // Clear the old maze
     
+    // Define our tile classes
+    const tileMap = {
+        0: 'path',
+        1: 'wall',
+        2: 'start',
+        3: 'goal',
+        4: 'path' // Bananas (type 4) sit ON a path tile
+    };
+
     maze.forEach((row, i) => {
         row.forEach((cell, j) => {
             const cellDiv = document.createElement('div');
-            cellDiv.className = 'cell';
             
-            const hasAgent = agentPos[0] === i && agentPos[1] === j;
+            // 1. Set the floor class (e.g., "cell path")
+            cellDiv.className = 'cell ' + tileMap[cell];
+            
+            // 2. Add entity sprites
+            
+            // If it's a banana tile, add a banana sprite
+            if (cell === 4) {
+                cellDiv.appendChild(createEntity('banana'));
+            }
+            
+            // Check for player and agent
             const hasPlayer = playerPos[0] === i && playerPos[1] === j;
-            
-            if (hasAgent && hasPlayer) cellDiv.className += ' both-sprites';
-            else if (hasAgent) cellDiv.className += ' agent';
-            else if (hasPlayer) cellDiv.className += ' player';
-            else if (cell === 0) cellDiv.className += ' path';
-            else if (cell === 1) cellDiv.className += ' wall';
-            else if (cell === 2) cellDiv.className += ' start';
-            else if (cell === 3) cellDiv.className += ' goal';
-            else if (cell === 4) cellDiv.className += ' banana';
+            const hasAgent = agentPos[0] === i && agentPos[1] === j;
+
+            if (hasPlayer) {
+                cellDiv.appendChild(createEntity('player'));
+            }
+            if (hasAgent) {
+                cellDiv.appendChild(createEntity('agent'));
+            }
             
             mazeDiv.appendChild(cellDiv);
         });
