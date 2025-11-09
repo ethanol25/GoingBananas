@@ -1,27 +1,22 @@
+import asyncio
+import json
+import numpy as np
+from typing import Optional
+import uvicorn
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import gymnasium as gym
 from gymnasium import spaces
-import numpy as np
-import json
-import asyncio
-from typing import List, Tuple
 
-app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Custom Maze Environment
+# --- Maze Environment (Unchanged) ---
 class MazeEnv(gym.Env):
-    """Custom Maze Environment compatible with gym interface"""
-    
     def __init__(self, size=8):
         super(MazeEnv, self).__init__()
         self.size = size
-        self.action_space = spaces.Discrete(4)  # Up, Right, Down, Left
+        self.action_space = spaces.Discrete(4)
         self.observation_space = spaces.Discrete(size * size)
-        
-        # Define maze (0=path, 1=wall, 2=start, 3=goal, 4=banana, 5=powerup, 6=checkpoint)
         self.maze = np.array([
             [2, 0, 0, 1, 0, 0, 0, 4],
             [0, 1, 0, 1, 0, 1, 1, 0],
@@ -32,129 +27,96 @@ class MazeEnv(gym.Env):
             [0, 1, 0, 0, 0, 0, 0, 0],
             [4, 1, 1, 1, 0, 0, 0, 3],
         ])
-        
-        self.original_maze = self.maze.copy()  # Store original for reset
+        self.original_maze = self.maze.copy()
         self.visited_cells = set()
-        self.checkpoints = set()
         self.total_steps = 0
-        
         self.start_pos = (0, 0)
         self.goal_pos = (7, 7)
         self.agent_pos = list(self.start_pos)
         self.player_pos = list(self.start_pos)
-        
+        self.player_score = 0
+        self.agent_score = 0
+
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.agent_pos = list(self.start_pos)
         self.player_pos = list(self.start_pos)
-        self.maze = self.original_maze.copy()  # Reset maze to restore power-ups
+        self.maze = self.original_maze.copy()
         self.visited_cells = set()
-        self.checkpoints = set()
         self.total_steps = 0
         self.player_score = 0
         self.agent_score = 0
         return self._get_state(), {}
-    
+
     def _get_state(self):
         return self.agent_pos[0] * self.size + self.agent_pos[1]
-    
+
     def step(self, action, is_player=False):
-        # Actions: 0=Up, 1=Right, 2=Down, 3=Left
         moves = [(-1, 0), (0, 1), (1, 0), (0, -1)]
-        
         pos = self.player_pos if is_player else self.agent_pos
-            
-        new_pos = [
-            pos[0] + moves[action][0],
-            pos[1] + moves[action][1]
-        ]
+        new_pos = [pos[0] + moves[action][0], pos[1] + moves[action][1]]
         
-        # Initialize reward
-        reward = -0.1  # Small penalty for each step
+        reward = -0.1
         self.total_steps += 1
         terminated = False
         info = {}
-        
-        # Calculate Manhattan distance to goal (for reward shaping)
         old_distance = abs(pos[0] - self.goal_pos[0]) + abs(pos[1] - self.goal_pos[1])
-        
-        # Check boundaries and walls
-        if (0 <= new_pos[0] < self.size and 
-            0 <= new_pos[1] < self.size):
-            
+
+        if not (0 <= new_pos[0] < self.size and 0 <= new_pos[1] < self.size):
+            reward = -10
+            info['message'] = "Out of bounds! -10"
+        else:
             cell_type = self.maze[new_pos[0], new_pos[1]]
-            
-            # Hit a wall - penalty and don't move
             if cell_type == 1:
                 reward = -5
                 info['message'] = "Hit a wall! -5"
-                new_distance = old_distance  # Distance unchanged
             else:
-                # Valid move
                 if is_player:
                     self.player_pos = new_pos
                 else:
                     self.agent_pos = new_pos
                 
-                # Calculate new distance
                 new_distance = abs(new_pos[0] - self.goal_pos[0]) + abs(new_pos[1] - self.goal_pos[1])
+                if new_distance < old_distance: reward += 0.5
+                elif new_distance > old_distance: reward -= 0.5
                 
-                # Distance-based reward shaping
-                if new_distance < old_distance:
-                    reward += 0.5  # Getting closer
-                elif new_distance > old_distance:
-                    reward -= 0.5  # Moving away
-                
-                # Check for special cells
-                if cell_type == 4:  # Banana
+                if cell_type == 4:
                     reward = 15
-                    self.maze[new_pos[0], new_pos[1]] = 0  # Remove after collection
+                    self.maze[new_pos[0], new_pos[1]] = 0
                     info['message'] = "🍌 Collected banana! +15"
-                    
-                # Exploration bonus
+                
                 cell_tuple = tuple(new_pos)
                 if cell_tuple not in self.visited_cells:
                     self.visited_cells.add(cell_tuple)
                     reward += 1
                     info['message'] = info.get('message', '') + " [+1 exploration]"
                 
-                # Check for goal
                 if tuple(new_pos) == self.goal_pos:
                     reward = 100
-                    # Bonus for efficiency (fewer steps)
                     if self.total_steps < 50:
                         reward += 20
                         info['message'] = "🏆 Goal! +100 (+20 speed bonus!)"
                     else:
                         info['message'] = "🏆 Goal reached! +100"
                     terminated = True
-
-        # Time penalty (encourages faster solutions)
+        
         if self.total_steps > 100:
             reward -= 0.5
 
-        # Update scores
         if is_player:
             self.player_score += reward
         else:
             self.agent_score += reward
         
-        info['player_score'] = self.player_score
-        info['agent_score'] = self.agent_score
-        
         return self._get_state(), reward, terminated, False, info
-    
+
     def get_maze_state(self):
-        """Return current maze state for visualization"""
         return {
-            "maze": self.maze.tolist(),
-            "agent_pos": self.agent_pos,
-            "player_pos": self.player_pos,
-            "goal_pos": list(self.goal_pos)
+            "maze": self.maze.tolist(), "agent_pos": self.agent_pos,
+            "player_pos": self.player_pos, "goal_pos": list(self.goal_pos)
         }
 
-
-# Q-Learning Agent
+# --- Q-Learning Agent (with new Pre-training fields) ---
 class QLearningAgent:
     def __init__(self, state_size, action_size):
         self.state_size = state_size
@@ -165,7 +127,8 @@ class QLearningAgent:
         self.epsilon = 1.0
         self.epsilon_decay = 0.995
         self.min_epsilon = 0.01
-        
+        self.is_pretrained = False # <-- NEW
+
     def get_action(self, state, training=True):
         if training and np.random.random() < self.epsilon:
             return np.random.randint(self.action_size)
@@ -174,7 +137,6 @@ class QLearningAgent:
     def update(self, state, action, reward, next_state):
         old_value = self.q_table[state, action]
         next_max = np.max(self.q_table[next_state])
-        
         new_value = old_value + self.learning_rate * (
             reward + self.discount_factor * next_max - old_value
         )
@@ -183,296 +145,199 @@ class QLearningAgent:
     def decay_epsilon(self):
         self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
 
+    def save_model(self, path="model.npy"): # <-- NEW
+        np.save(path, self.q_table)
+    
+    def load_model(self, path="model.npy"): # <-- NEW
+        try:
+            self.q_table = np.load(path)
+            self.is_pretrained = True
+            self.epsilon = self.min_epsilon # Already trained
+            return True
+        except:
+            return False
 
-# Global instances
-env = MazeEnv()
-agent = QLearningAgent(env.observation_space.n, env.action_space.n)
+# --- New Pre-training and Server Setup ---
 
+# Create ONE global agent and ONE environment just for training
+global_agent = QLearningAgent(64, 4)
+training_env = MazeEnv()
+pretraining_task: Optional[asyncio.Task] = None
+
+app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+async def pretrain_agent(episodes=100, report_interval=10):
+    """Pre-train the global agent in the background"""
+    global global_agent
+    print(f"Starting global pre-training for {episodes} episodes...")
+    
+    for episode in range(episodes):
+        state, _ = training_env.reset()
+        done = False
+        steps = 0
+        
+        while not done and steps < 200:
+            action = global_agent.get_action(state, training=True)
+            next_state, reward, terminated, truncated, _ = training_env.step(action)
+            done = terminated or truncated
+            global_agent.update(state, action, reward, next_state)
+            state = next_state
+            steps += 1
+        
+        global_agent.decay_epsilon()
+        
+        if (episode + 1) % report_interval == 0:
+            print(f"Global Pre-training... Episode {episode + 1}/{episodes}")
+        
+        # Allow other server tasks to run
+        await asyncio.sleep(0)
+    
+    global_agent.is_pretrained = True
+    global_agent.save_model()
+    print("!!! GLOBAL PRE-TRAINING COMPLETE! Model saved. !!!")
+
+@app.on_event("startup")
+async def startup_event():
+    """Run pre-training on server startup"""
+    global pretraining_task
+    if not global_agent.load_model():
+        print("No saved model found. Starting pre-training in background...")
+        pretraining_task = asyncio.create_task(pretrain_agent())
+    else:
+        print("Loaded pre-trained model from disk.")
 
 @app.get("/")
 async def get_root():
     return FileResponse("static/index.html")
 
-
+# --- New WebSocket Endpoint ---
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    print("INFO:     connection open")
     
+    # Create a LOCAL, per-user environment
+    user_env = MazeEnv() 
+    
+    # Use the GLOBAL pre-trained agent
+    global global_agent 
+    
+    # Constants for the "dummy" training visualization
+    DUMMY_TRAIN_EPISODES = 10
+    DUMMY_TRAIN_VISUAL_UPDATE_RATE = 1
 
-    episode = 0
-    total_reward = 0
-    steps = 0
-    training = False
-    racing = False
-    AUTO_TRAIN_EPISODES = 100
-    AUTO_TRAIN_VISUAL_UPDATE_RATE = 1
+    stats = {"episode": 0, "steps": 0}
+
     
     try:
         # Send initial state
-        maze_state = env.get_maze_state()
+        maze_state = user_env.get_maze_state()
         await websocket.send_json({
-            "type": "state",
-            "maze": maze_state["maze"],
-            "agent_pos": maze_state["agent_pos"],
-            "player_pos": maze_state["player_pos"],
-            "player_score": 0,
-            "agent_score": 0,
+            "type": "state", "maze": maze_state["maze"],
+            "agent_pos": maze_state["agent_pos"], "player_pos": maze_state["player_pos"],
             "stats": {
-                "episode": episode,
-                "steps": steps,
-                "epsilon": agent.epsilon,
-                "total_reward": total_reward
+                "episode": stats["episode"], "steps": stats["steps"], "epsilon": global_agent.epsilon,
+                "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
             }
         })
         
         while True:
-            # Receive commands from client
-            try:
-                data = await asyncio.wait_for(websocket.receive_json(), timeout=0.1)
+            data = await websocket.receive_json()
 
-                if data["action"] == "start_auto_train":
-                    training = False 
-                    racing = False
-                    
-                    await websocket.send_json({
-                        "type": "log",
-                        "message": f"Starting auto-training for {AUTO_TRAIN_EPISODES} episodes..."
-                    })
-                    
-                    for ep in range(AUTO_TRAIN_EPISODES):
-                        state, _ = env.reset()
-                        done = False
-                        episode += 1
-                        total_reward = 0
-                        steps = 0
-                        
-                        while not done and steps < 200:
-                            action = agent.get_action(state, training=True)
-                            next_state, reward, terminated, truncated, _ = env.step(action)
-                            done = terminated or truncated
-                            agent.update(state, action, reward, next_state)
-                            
-                            total_reward += reward
-                            steps += 1
-                            state = next_state
-                        
-                        agent.decay_epsilon()
-                        
-                        # Send a visual update periodically
-                        if ep % AUTO_TRAIN_VISUAL_UPDATE_RATE == 0:
-                            maze_state = env.get_maze_state()
-                            await websocket.send_json({
-                                "type": "state",
-                                "maze": maze_state["maze"],
-                                "agent_pos": maze_state["agent_pos"],
-                                "player_pos": maze_state["player_pos"],
-                                "player_score": env.player_score, # <-- This is at the top level
-                                "agent_score": env.agent_score, # <-- This is at the top level
-                                "stats": {
-                                    "episode": episode,
-                                    "steps": steps,
-                                    "epsilon": agent.epsilon,
-                                    "total_reward": total_reward
-                                }
-                            })
-                            await asyncio.sleep(0.01) # Give websocket time to send
-                    
-                    # --- THIS SENDS THE MESSAGE TO THE JS ---
-                    print("!!! TRAINING COMPLETE. SENDING MESSAGE. !!!")
-                    await websocket.send_json({"type": "training_complete"})
-                
-                elif data["action"] == "train":
-                    training = True
-                    racing = False
-                    await websocket.send_json({
-                        "type": "log",
-                        "message": "Training started"
-                    })
-                elif data["action"] == "stop":
-                    training = False
-                    racing = False
-
-                elif data["action"] == "race":
-                    # Start race mode
-                    racing = True
-                    training = False
-                    state, _ = env.reset()
-                    steps = 0
-                    
-                    maze_state = env.get_maze_state()
-                    await websocket.send_json({
-                        "type": "state",
-                        "maze": maze_state["maze"],
-                        "agent_pos": maze_state["agent_pos"],
-                        "player_pos": maze_state["player_pos"],
-                        "player_score": env.player_score,
-                        "agent_score": env.agent_score,
-                        "stats": {
-                            "episode": episode,
-                            "steps": steps,
-                            "epsilon": agent.epsilon,
-                            "total_reward": 0
-                        }
-                    })
-                    
-                elif data["action"] == "player_move":
-                    if racing:
-                        # Move player
-                        direction = data["direction"]
-                        _, reward, terminated, _, info = env.step(direction, is_player=True)
-                        
-                        # Send message if there's feedback
-                        if 'message' in info and info['message']:
-                            await websocket.send_json({
-                                "type": "log",
-                                "message": info['message'],
-                                "player": True
-                            })
-                        
-                        maze_state = env.get_maze_state()
-                        await websocket.send_json({
-                            "type": "state",
-                            "maze": maze_state["maze"],
-                            "agent_pos": maze_state["agent_pos"],
-                            "player_pos": maze_state["player_pos"],
-                            "player_score": env.player_score,
-                            "agent_score": env.agent_score,
-                            "stats": {
-                                "episode": episode,
-                                "steps": steps,
-                                "epsilon": agent.epsilon,
-                                "total_reward": 0
-                            }
-                        })
-                        
-                        if terminated:
-                            racing = False
-                            await websocket.send_json({
-                                "type": "win",
-                                "winner": "player"
-                            })
-                        
-                elif data["action"] == "reset":
-                    state, _ = env.reset()
-                    episode = 0
-                    total_reward = 0
-                    steps = 0
-                    racing = False
-                    training = False
-                    
-                    maze_state = env.get_maze_state()
-                    await websocket.send_json({
-                        "type": "state",
-                        "maze": maze_state["maze"],
-                        "agent_pos": maze_state["agent_pos"],
-                        "player_pos": maze_state["player_pos"],
-                        "player_score": env.player_score,
-                        "agent_score": env.agent_score,
-                        "stats": {
-                            "episode": episode,
-                            "steps": steps,
-                            "epsilon": agent.epsilon,
-                            "total_reward": 0
-                        }
-                    })
-                    
-            except asyncio.TimeoutError:
-                pass
-            
-            # Training loop
-            if training:
-                state, _ = env.reset()
-                done = False
-                episode += 1
-                total_reward = 0
-                steps = 0
-                
-                while not done and steps < 200:
-                    action = agent.get_action(state, training=True)
-                    next_state, reward, terminated, truncated, _ = env.step(action)
-                    done = terminated or truncated
-                    
-                    agent.update(state, action, reward, next_state)
-                    
-                    total_reward += reward
-                    steps += 1
-                    state = next_state
-                    
-                    # Send update every few steps
-                    if steps % 5 == 0:
-                        maze_state = env.get_maze_state()
-                        await websocket.send_json({
-                            "type": "state",
-                            "maze": maze_state["maze"],
-                            "agent_pos": maze_state["agent_pos"],
-                            "player_pos": maze_state["player_pos"],
-                            "player_score": env.player_score,
-                            "agent_score": env.agent_score,
-                            "stats": {
-                                "episode": episode,
-                                "steps": steps,
-                                "epsilon": agent.epsilon,
-                                "total_reward": total_reward
-                            }
-                        })
-                        await asyncio.sleep(0.005)
-                
-                agent.decay_epsilon()
-                
-                if terminated:
-                    await websocket.send_json({
-                        "type": "log",
-                        "message": f"Episode {episode}: SUCCESS in {steps} steps! Reward: {total_reward:.1f}"
-                    })
-                
-                await asyncio.sleep(0.1)
-                
-            # Race mode
-            elif racing:
-                # AI makes a move
-                action = agent.get_action(env._get_state(), training=False)
-                next_state, reward, terminated, truncated, info = env.step(action)
-                steps += 1
-                
-                # Send AI move feedback
-                if 'message' in info and info['message']:
-                    await websocket.send_json({
-                        "type": "log",
-                        "message": info['message'],
-                        "player": False
-                    })
-                
-                maze_state = env.get_maze_state()
+            if data["action"] == "start_auto_train":
+                # This is now a "dummy" loop just for visualization.
                 await websocket.send_json({
-                    "type": "state",
-                    "maze": maze_state["maze"],
-                    "agent_pos": maze_state["agent_pos"],
-                    "player_pos": maze_state["player_pos"],
-                    "player_score": env.player_score, # <-- This is at the top level
-                    "agent_score": env.agent_score, # <-- This is at the top level
+                    "type": "log",
+                    "message": f"Starting visual training for {DUMMY_TRAIN_EPISODES} episodes..."
+                })
+                
+                for ep in range(DUMMY_TRAIN_EPISODES):
+                    state, _ = user_env.reset()
+                    stats["episode"] += 1
+                    
+                    if ep % DUMMY_TRAIN_VISUAL_UPDATE_RATE == 0:
+                        maze_state = user_env.get_maze_state()
+                        await websocket.send_json({
+                            "type": "state", "maze": maze_state["maze"],
+                            "agent_pos": user_env.agent_pos, "player_pos": user_env.player_pos,
+                            "stats": {
+                                "episode": stats["episode"], "steps": 0, "epsilon": global_agent.epsilon,
+                                "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
+                            }
+                        })
+                        await asyncio.sleep(0.05) # Visual delay
+
+                await websocket.send_json({"type": "training_complete"})
+            
+            elif data["action"] == "race":
+                state, _ = user_env.reset()
+                stats["steps"] = 0
+                
+                maze_state = user_env.get_maze_state()
+                await websocket.send_json({
+                    "type": "state", "maze": maze_state["maze"],
+                    "agent_pos": maze_state["agent_pos"], "player_pos": maze_state["player_pos"],
                     "stats": {
-                        "episode": episode,
-                        "steps": steps,
-                        "epsilon": agent.epsilon,
-                        "total_reward": 0
+                        "episode": stats["episode"], "steps": stats["steps"], "epsilon": global_agent.epsilon,
+                        "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
                     }
                 })
                 
-                if terminated:
-                    racing = False
-                    await websocket.send_json({
-                        "type": "win",
-                        "winner": "ai"
-                    })
+            elif data["action"] == "player_move":
+                # --- This is the new turn-based logic ---
                 
-                await asyncio.sleep(0.35)  # AI moves slower for fair competition
-            else:
-                await asyncio.sleep(0.1)
+                # 1. Player moves
+                direction = data["direction"]
+                _, reward_p, terminated_p, _, info_p = user_env.step(direction, is_player=True)
                 
+                if 'message' in info_p and info_p['message']:
+                    await websocket.send_json({"type": "log", "message": info_p['message'], "player": True})
+                
+                if terminated_p:
+                    # Player won
+                    await websocket.send_json({"type": "win", "winner": "player"})
+                else:
+                    # 2. AI moves immediately after
+                    action_ai = global_agent.get_action(user_env._get_state(), training=False)
+                    _, reward_ai, terminated_ai, _, info_ai = user_env.step(action_ai, is_player=False)
+                    
+                    if terminated_ai:
+                        # AI won
+                        await websocket.send_json({"type": "win", "winner": "ai"})
+                
+                # 3. Send ONE update with both new positions
+                maze_state = user_env.get_maze_state()
+                await websocket.send_json({
+                    "type": "state", "maze": maze_state["maze"],
+                    "agent_pos": user_env.agent_pos, # AI's new position
+                    "player_pos": user_env.player_pos, # Player's new position
+                    "stats": {
+                        "episode": stats["episode"], "steps": stats["steps"], "epsilon": global_agent.epsilon,
+                        "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
+                    }
+                })
+                        
+            elif data["action"] == "reset":
+                state, _ = user_env.reset()
+                stats["episode"] = 0
+                stats["steps"] = 0
+                
+                maze_state = user_env.get_maze_state()
+                await websocket.send_json({
+                    "type": "state", "maze": maze_state["maze"],
+                    "agent_pos": maze_state["agent_pos"], "player_pos": maze_state["player_pos"],
+                    "stats": {
+                        "episode": stats["episode"], "steps": stats["steps"], "epsilon": global_agent.epsilon,
+                        "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
+                    }
+                })
+                    
     except WebSocketDisconnect:
         print("Client disconnected")
-
+    finally:
+        # Clean up the AI task when the player disconnects
+        print("INFO:     connection closed")
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
