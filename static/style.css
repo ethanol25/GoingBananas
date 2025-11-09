@@ -154,7 +154,7 @@ h1 {
     background: #775253; /* Matches your stat boxes */
     border: 2px solid black;
     border-radius: 8px;
-    padding: 15px;
+    padding: 9px;
     color: #fff;
     max-width: 250px;
     justify-self: center;
@@ -171,7 +171,7 @@ h1 {
     padding: 0;
     list-style: none;
     font-weight: bold;
-    font-size: 14px;
+    font-size: 17px;
 }
 #key-container li {
     margin-bottom: 10px;
