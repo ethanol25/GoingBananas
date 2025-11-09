@@ -368,16 +368,20 @@ async def websocket_endpoint(websocket: WebSocket):
                 if terminated_p:
                     # Player won
                     await websocket.send_json({"type": "win", "winner": "player"})
-                else:
-                    # 2. AI moves immediately after
-                    action_ai = global_agent.get_action(user_env._get_state(), training=False)
-                    _, reward_ai, terminated_ai, _, info_ai = user_env.step(action_ai, is_player=False)
-                    
-                    if terminated_ai:
-                        # AI won
-                        await websocket.send_json({"type": "win", "winner": "ai"})
+                    # --- FIX: Stop processing this move ---
+                    continue 
                 
-                # 3. Send ONE update with both new positions
+                # 2. AI moves immediately after (if player didn't win)
+                action_ai = global_agent.get_action(user_env._get_state(), training=False)
+                _, reward_ai, terminated_ai, _, info_ai = user_env.step(action_ai, is_player=False)
+                
+                if terminated_ai:
+                    # AI won
+                    await websocket.send_json({"type": "win", "winner": "ai"})
+                    # --- FIX: Stop processing this move ---
+                    continue 
+
+                # 3. Send state update ONLY if game is still active
                 maze_state = user_env.get_maze_state()
                 await websocket.send_json({
                     "type": "state", "maze": maze_state["maze"],
