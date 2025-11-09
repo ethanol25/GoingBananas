@@ -4,6 +4,7 @@ let racing = false;
 let playerSteps = 0;
 let aiWins = 0;
 let playerWins = 0;
+let isInitialState = true;
 
 // --- Get DOM Elements ---
 const mainContentBlocks = document.querySelectorAll('.main-content-block');
@@ -35,6 +36,13 @@ ws.onmessage = function(event) {
     if (data.type === 'state') {
         renderMaze(data.maze, data.agent_pos, data.player_pos);
         updateStats(data.stats);
+
+        if (isInitialState) {
+            isInitialState = false;
+        } else {
+        showMainContent('maze');
+        racing = true;
+        }
     } else if (data.type === 'log') {
         addLog(data.message, data.player);
     } else if (data.type === 'win') {
@@ -73,11 +81,11 @@ document.getElementById('start-race-button').onclick = () => {
     startRace();
 };
 
-// --- Game Control Button Listeners (for hidden buttons) ---
-document.getElementById('train-button').onclick = startTraining;
-document.getElementById('stop-button').onclick = stopTraining;
-document.getElementById('race-button').onclick = startRace;
-document.getElementById('reset-button').onclick = resetEnvironment;
+// // --- Game Control Button Listeners (for hidden buttons) ---
+// document.getElementById('train-button').onclick = startTraining;
+// document.getElementById('stop-button').onclick = stopTraining;
+// document.getElementById('race-button').onclick = startRace;
+// document.getElementById('reset-button').onclick = resetEnvironment;
 
 function createEntity(type) {
     const img = document.createElement('img');
@@ -182,68 +190,71 @@ function addLog(message, isPlayer = false) {
 }
 
 function handleWin(winner) {
-    racing = false;
     let winMessage = '';
-    
+    racing = false;
+
     if (winner === 'player') {
-        playerWins++;
-        winMessage = `🏆 PLAYER WINS in ${playerSteps} steps!`;
+        playerWins++; // This is now a "win count", not live score
+        winMessage = `🏆 PLAYER WINS!`;
         document.getElementById('player-wins').textContent = playerWins;
     } else {
-        aiWins++;
+        aiWins++; // This is now a "win count"
         winMessage = `🏆 AI WINS!`;
         document.getElementById('ai-wins').textContent = aiWins;
     }
-    
+
     addLog(winMessage);
-    
+
     // Alert the user
-    alert(winMessage + "\n\nPress OK to race again.");
-    
-    // --- MODIFIED ---
-    // Reset the environment and show the "Ready" screen, not the start menu
-    ws.send(JSON.stringify({action: 'reset'}));
-    racing = false;
-    training = false;
-    playerSteps = 0;
+    alert(winMessage + `\n\nPress OK to advance to the next level.`);
+
+    // --- THIS IS THE KEY CHANGE ---
+    // Go back to the "Ready" screen to prepare for the next level.
+    // We DO NOT send 'reset' here.
     showMainContent('ready-content');
 }
 
-// --- Button Functions ---
-function startTraining() {
-    // This function is now just for manual training
-    ws.send(JSON.stringify({action: 'train'}));
-    addLog('Manual training started...');
-    training = true;
-    racing = false;
-}
+// // --- Button Functions ---
+// function startTraining() {
+//     // This function is now just for manual training
+//     ws.send(JSON.stringify({action: 'train'}));
+//     addLog('Manual training started...');
+//     training = true;
+//     racing = false;
+// }
 
-function stopTraining() {
-    ws.send(JSON.stringify({action: 'stop'}));
-    addLog('Training stopped');
-    training = false;
-}
+// function stopTraining() {
+//     ws.send(JSON.stringify({action: 'stop'}));
+//     addLog('Training stopped');
+//     training = false;
+// }
 
 function startRace() {
-    // This is now the ONLY way to start a race
+    // This function is triggered by the "START RACE" button
+    // It tells the server to train for the next level
     ws.send(JSON.stringify({action: 'race'}));
+
+    // This LOGIC MOVED from 'resetEnvironment'
+    // Reset local scores for the new race
+    playerSteps = 0; 
+    document.getElementById('player-wins').textContent = "0"; // Reset live score
+    document.getElementById('ai-wins').textContent = "0"; // Reset live score
+
+    // Show the maze and log
     addLog('Race started! Use arrow keys or WASD to move!', true);
-    racing = true;
-    training = false;
-    playerSteps = 0; // Reset local player step count
 }
 
 function resetEnvironment() {
+    // This function is for the hidden button, to go to Main Menu
     ws.send(JSON.stringify({action: 'reset'}));
     addLog('Environment reset. Going to Main Menu.');
-    racing = false;
-    training = false;
-    playerSteps = 0;
-    aiWins = 0; 
-    playerWins = 0; 
-    document.getElementById('ai-wins').textContent = aiWins;
-    document.getElementById('player-wins').textContent = playerWins;
-    
+
+    // Reset win counts
+    playerWins = 0;
+    aiWins = 0;
+    document.getElementById('player-wins').textContent = "0";
+    document.getElementById('ai-wins').textContent = "0";
+
     // Go back to the very start screen
     showMainContent('start-content');
 }
