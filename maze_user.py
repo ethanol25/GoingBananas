@@ -81,9 +81,9 @@ class MazeEnv(gym.Env):
                 elif new_distance > old_distance: reward -= 0.5
                 
                 if cell_type == 4:
-                    reward = 15
+                    reward = 25
                     self.maze[new_pos[0], new_pos[1]] = 0
-                    info['message'] = "🍌 Collected banana! +15"
+                    info['message'] = "🍌 Collected banana! +25"
                 
                 cell_tuple = tuple(new_pos)
                 if cell_tuple not in self.visited_cells:
@@ -223,8 +223,6 @@ async def websocket_endpoint(websocket: WebSocket):
     
     # Use the GLOBAL pre-trained agent
     global global_agent 
-    
-
 
     stats = {"episode": 0, "steps": 0}
     
