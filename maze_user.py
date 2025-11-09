@@ -167,7 +167,7 @@ pretraining_task: Optional[asyncio.Task] = None
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-async def pretrain_agent(episodes=5000, report_interval=500):
+async def pretrain_agent(episodes=100, report_interval=10):
     """Pre-train the global agent in the background"""
     global global_agent
     print(f"Starting global pre-training for {episodes} episodes...")
@@ -211,42 +211,6 @@ async def startup_event():
 async def get_root():
     return FileResponse("static/index.html")
 
-# --- New Concurrent AI Loop ---
-async def ai_game_loop(websocket: WebSocket, env: MazeEnv, agent: QLearningAgent, shared_state: dict, stats: dict):
-    """A separate, concurrent loop to manage AI movement during a race."""
-    
-    while True:
-        try:
-            if shared_state["racing"]:
-                action = agent.get_action(env._get_state(), training=False)
-                next_state, reward, terminated, truncated, info = env.step(action, is_player=False)
-                stats["steps"] += 1
-                
-                maze_state = env.get_maze_state()
-                await websocket.send_json({
-                    "type": "state", "maze": maze_state["maze"],
-                    "agent_pos": maze_state["agent_pos"], "player_pos": maze_state["player_pos"],
-                    "stats": {
-                        "episode": stats["episode"], "steps": stats["steps"], "epsilon": agent.epsilon,
-                        "total_reward": 0, "player_score": env.player_score, "agent_score": env.agent_score
-                    }
-                })
-                
-                if terminated:
-                    shared_state["racing"] = False
-                    await websocket.send_json({"type": "win", "winner": "ai"})
-                
-                await asyncio.sleep(0.1) # AI move speed
-            else:
-                # Loop is idle, just sleep
-                await asyncio.sleep(0.1)
-        
-        except WebSocketDisconnect:
-            break # Client disconnected
-        except Exception as e:
-            print(f"Error in AI loop: {e}")
-            await asyncio.sleep(0.1)
-
 # --- New WebSocket Endpoint ---
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -263,13 +227,8 @@ async def websocket_endpoint(websocket: WebSocket):
     DUMMY_TRAIN_EPISODES = 10
     DUMMY_TRAIN_VISUAL_UPDATE_RATE = 1
 
-    shared_state = {"racing": False, "training": False} # 'training' is not used by AI loop
     stats = {"episode": 0, "steps": 0}
-    
-    # Start the concurrent AI loop for this user
-    ai_task = asyncio.create_task(
-        ai_game_loop(websocket, user_env, global_agent, shared_state, stats)
-    )
+
     
     try:
         # Send initial state
@@ -283,13 +242,11 @@ async def websocket_endpoint(websocket: WebSocket):
             }
         })
         
-        # --- PLAYER MESSAGE LOOP ---
         while True:
             data = await websocket.receive_json()
 
             if data["action"] == "start_auto_train":
                 # This is now a "dummy" loop just for visualization.
-                # It does NOT train the global agent.
                 await websocket.send_json({
                     "type": "log",
                     "message": f"Starting visual training for {DUMMY_TRAIN_EPISODES} episodes..."
@@ -310,17 +267,10 @@ async def websocket_endpoint(websocket: WebSocket):
                             }
                         })
                         await asyncio.sleep(0.05) # Visual delay
-                
-                # Check if the *real* agent is ready (it should be)
-                if not global_agent.is_pretrained:
-                    print("WARN: User is ready, but global pre-training is not yet complete.")
-                    await websocket.send_json({"type": "log", "message": "Global agent is still warming up..."})
-                
-                print("!!! DUMMY TRAINING COMPLETE. SENDING MESSAGE. !!!")
+
                 await websocket.send_json({"type": "training_complete"})
             
             elif data["action"] == "race":
-                shared_state["racing"] = True
                 state, _ = user_env.reset()
                 stats["steps"] = 0
                 
@@ -335,32 +285,43 @@ async def websocket_endpoint(websocket: WebSocket):
                 })
                 
             elif data["action"] == "player_move":
-                if shared_state["racing"]:
-                    direction = data["direction"]
-                    _, reward, terminated, _, info = user_env.step(direction, is_player=True)
+                # --- This is the new turn-based logic ---
+                
+                # 1. Player moves
+                direction = data["direction"]
+                _, reward_p, terminated_p, _, info_p = user_env.step(direction, is_player=True)
+                
+                if 'message' in info_p and info_p['message']:
+                    await websocket.send_json({"type": "log", "message": info_p['message'], "player": True})
+                
+                if terminated_p:
+                    # Player won
+                    await websocket.send_json({"type": "win", "winner": "player"})
+                else:
+                    # 2. AI moves immediately after
+                    action_ai = global_agent.get_action(user_env._get_state(), training=False)
+                    _, reward_ai, terminated_ai, _, info_ai = user_env.step(action_ai, is_player=False)
                     
-                    if 'message' in info and info['message']:
-                        await websocket.send_json({"type": "log", "message": info['message'], "player": True})
-                    
-                    maze_state = user_env.get_maze_state()
-                    await websocket.send_json({
-                        "type": "state", "maze": maze_state["maze"],
-                        "agent_pos": maze_state["agent_pos"], "player_pos": maze_state["player_pos"],
-                        "stats": {
-                            "episode": stats["episode"], "steps": stats["steps"], "epsilon": global_agent.epsilon,
-                            "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
-                        }
-                    })
-                    
-                    if terminated:
-                        shared_state["racing"] = False # Stop the AI loop
-                        await websocket.send_json({"type": "win", "winner": "player"})
+                    if terminated_ai:
+                        # AI won
+                        await websocket.send_json({"type": "win", "winner": "ai"})
+                
+                # 3. Send ONE update with both new positions
+                maze_state = user_env.get_maze_state()
+                await websocket.send_json({
+                    "type": "state", "maze": maze_state["maze"],
+                    "agent_pos": user_env.agent_pos, # AI's new position
+                    "player_pos": user_env.player_pos, # Player's new position
+                    "stats": {
+                        "episode": stats["episode"], "steps": stats["steps"], "epsilon": global_agent.epsilon,
+                        "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
+                    }
+                })
                         
             elif data["action"] == "reset":
                 state, _ = user_env.reset()
                 stats["episode"] = 0
                 stats["steps"] = 0
-                shared_state["racing"] = False
                 
                 maze_state = user_env.get_maze_state()
                 await websocket.send_json({
@@ -376,7 +337,6 @@ async def websocket_endpoint(websocket: WebSocket):
         print("Client disconnected")
     finally:
         # Clean up the AI task when the player disconnects
-        ai_task.cancel()
         print("INFO:     connection closed")
 
 if __name__ == "__main__":
