@@ -34,26 +34,47 @@ ws.onmessage = function(event) {
     const data = JSON.parse(event.data);
     
     if (data.type === 'state') {
+        // This is the "real" game state, after training or a move
         renderMaze(data.maze, data.agent_pos, data.player_pos);
-        updateStats(data.stats);
+        updateStats(data.stats); // Update with final race scores
 
         if (isInitialState) {
             isInitialState = false;
         } else {
-        showMainContent('maze');
-        racing = true;
+            // This is the signal that training is over and the race is starting
+            showMainContent('maze');
+            racing = true;
+            addLog('🏁 RACE START! Use WASD or Arrows!', true);
         }
+    } else if (data.type === 'training_update') {
+        // --- THIS IS THE NEW HANDLER ---
+        // This shows the agent's training steps in real-time
+        racing = false; // Player can't move during training
+        showMainContent('maze'); // Ensure maze is visible
+        renderMaze(data.maze, data.agent_pos, data.player_pos);
+        updateTrainingStats(data.stats); // Use a separate stats-updater for training
+
     } else if (data.type === 'log') {
         addLog(data.message, data.player);
     } else if (data.type === 'win') {
         handleWin(data.winner);
-    } else if (data.type === 'training_complete') {
-        // --- THIS IS THE NEW LOGIC ---
-        addLog('🤖 AI training complete! Ready to race!');
-        // Show the "START RACE" button
-        showMainContent('ready-content'); 
     }
+    // Note: The 'training_complete' handler is GONE, 
+    // because the 'state' message now signals the end of training.
 };
+
+function updateTrainingStats(stats) {
+    // Update visible stats for TRAINING
+    document.getElementById('episode').textContent = `${stats.episode}/${stats.total_episodes}`;
+    
+    // Set scores to 0 during training, as they are irrelevant
+    document.getElementById('player-wins').textContent = "0";
+    document.getElementById('ai-wins').textContent = "0";
+
+    // Update hidden stats
+    document.getElementById('steps').textContent = stats.steps;
+    document.getElementById('epsilon').textContent = stats.epsilon.toFixed(3);
+}
 
 // --- Page Load & Button Events ---
 window.onload = () => {
@@ -194,13 +215,17 @@ function handleWin(winner) {
     racing = false;
 
     if (winner === 'player') {
-        playerWins++; // This is now a "win count", not live score
+        playerWins++;
         winMessage = `🏆 PLAYER WINS!`;
         document.getElementById('player-wins').textContent = playerWins;
-    } else {
-        aiWins++; // This is now a "win count"
+    } else if (winner === 'ai') {
+        aiWins++;
         winMessage = `🏆 AI WINS!`;
         document.getElementById('ai-wins').textContent = aiWins;
+    } else {
+        // --- NEW: Handle the "draw" case ---
+        winMessage = `💥 IT'S A DRAW!`;
+        // We don't increment either score
     }
 
     addLog(winMessage);
@@ -208,10 +233,7 @@ function handleWin(winner) {
     // Alert the user
     alert(winMessage + `\n\nPress OK to advance to the next level.`);
 
-
-    // --- THIS IS THE KEY CHANGE ---
-    // Go back to the "Ready" screen to prepare for the next level.
-    // We DO NOT send 'reset' here.
+    // Go back to the "Ready" screen
     showMainContent('ready-content');
 }
 

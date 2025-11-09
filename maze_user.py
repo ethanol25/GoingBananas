@@ -81,9 +81,9 @@ class MazeEnv(gym.Env):
                 elif new_distance > old_distance: reward -= 0.5
                 
                 if cell_type == 4:
-                    reward = 25
+                    reward = 50
                     self.maze[new_pos[0], new_pos[1]] = 0
-                    info['message'] = "🍌 Collected banana! +25"
+                    info['message'] = "🍌 Collected banana! +50"
                 
                 cell_tuple = tuple(new_pos)
                 if cell_tuple not in self.visited_cells:
@@ -166,38 +166,102 @@ pretraining_task: Optional[asyncio.Task] = None
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-async def train_global_agent(episodes=10, report_interval=10):
-    """Safely train the global agent in the background"""
+async def train_global_agent(episodes=10, report_interval=10, websocket: Optional[WebSocket] = None):
+    """
+    Safely train the global agent in the background.
+    Will show a full, step-by-step visualization every N episodes.
+    """
     global global_agent
+
+    # --- TUNING KNOB ---
+    # Show the full step-by-step animation every N episodes.
+    # 1 = Show every episode.
+    # 3 = Show episode 3, 6, 9, etc.
+    VISUALIZATION_EPISODE_INTERVAL = 3 # <-- Adjust this to change speed
     
     # Use the lock to ensure only one training happens at a time
     async with global_training_lock:
         print(f"Starting global training for {episodes} episodes...")
+        if websocket:
+             await websocket.send_json({"type": "log", "message": f"Training started for {episodes} episodes..."})
         
         for episode in range(episodes):
             state, _ = training_env.reset()
             done = False
             steps = 0
+
+            # --- Decide if this episode should be visualized ---
+            is_visualized_episode = (episode + 1) % VISUALIZATION_EPISODE_INTERVAL == 0
+            is_last_episode = (episode + 1) == episodes
             
-            while not done and steps < 200:
-                action = global_agent.get_action(state, training=True)
-                next_state, reward, terminated, truncated, _ = training_env.step(action)
-                done = terminated or truncated
-                global_agent.update(state, action, reward, next_state)
-                state = next_state
-                steps += 1
+            # We only send updates if the websocket exists AND it's an interval episode (or the last one)
+            should_visualize = websocket and (is_visualized_episode or is_last_episode)
+
+            if should_visualize:
+                # --- VISUALIZED PATH (Slower, step-by-step) ---
+                
+                # Send the start-of-episode reset frame
+                maze_state = training_env.get_maze_state()
+                await websocket.send_json({
+                    "type": "training_update",
+                    "maze": maze_state["maze"],
+                    "agent_pos": maze_state["agent_pos"], # (0, 0)
+                    "player_pos": [-1, -1], # Hide player
+                    "stats": {
+                        "episode": episode + 1, "total_episodes": episodes,
+                        "steps": steps, "epsilon": global_agent.epsilon
+                    }
+                })
+                # Add a brief pause BETWEEN episodes so the user can see the reset
+                await asyncio.sleep(0.1) 
+
+                # Run the episode step-by-step WITH websocket updates
+                while not done and steps < 200:
+                    action = global_agent.get_action(state, training=True)
+                    next_state, reward, terminated, truncated, _ = training_env.step(action)
+                    done = terminated or truncated
+                    global_agent.update(state, action, reward, next_state)
+                    state = next_state
+                    steps += 1
+                    
+                    # Send step update
+                    maze_state = training_env.get_maze_state()
+                    await websocket.send_json({
+                        "type": "training_update",
+                        "maze": maze_state["maze"],
+                        "agent_pos": maze_state["agent_pos"],
+                        "player_pos": [-1, -1], # Hide player
+                        "stats": {
+                            "episode": episode + 1, "total_episodes": episodes,
+                            "steps": steps, "epsilon": global_agent.epsilon
+                        }
+                    })
+                    await asyncio.sleep(0) # Yield for rendering
             
+            else:
+                # --- NON-VISUALIZED PATH (Full speed) ---
+                # Run the episode step-by-step WITHOUT websocket updates
+                while not done and steps < 200:
+                    action = global_agent.get_action(state, training=True)
+                    next_state, reward, terminated, truncated, _ = training_env.step(action)
+                    done = terminated or truncated
+                    global_agent.update(state, action, reward, next_state)
+                    state = next_state
+                    steps += 1
+                    # No websocket.send_json() or sleep() here
+
+            # --- Logic for ALL episodes ---
             global_agent.decay_epsilon()
             
             if (episode + 1) % report_interval == 0:
                 print(f"Global Training... Episode {episode + 1}/{episodes}")
             
-            await asyncio.sleep(0) # Allow other tasks to run
-        
+        # --- Training Complete ---
         global_agent.is_pretrained = True
         global_agent.save_model()
         print(f"!!! GLOBAL TRAINING COMPLETE for {episodes} episodes! Model saved. !!!")
+        if websocket:
+             await websocket.send_json({"type": "log", "message": "Training complete. Preparing race..."})
 
 # --- MODIFIED: Startup now just loads the model ---
 @app.on_event("startup")
@@ -247,13 +311,23 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_json({"type": "log", "message": "Starting Level 1 training (10 episodes)..."})
                 
                 # Run the REAL training
-                await train_global_agent(episodes=10, report_interval=1)
+                await train_global_agent(episodes=10, report_interval=1, websocket=websocket)
                 
                 # Update stats for display
+                state, _ = user_env.reset()
                 stats["episode"] = 10 
+
+                maze_state = user_env.get_maze_state()
                 
                 print("!!! LEVEL 1 TRAINING COMPLETE. SENDING MESSAGE. !!!")
-                await websocket.send_json({"type": "training_complete"})
+                await websocket.send_json({
+                "type": "state", "maze": maze_state["maze"],
+                "agent_pos": maze_state["agent_pos"], "player_pos": maze_state["player_pos"],
+                "stats": {
+                    "episode": stats["episode"], "steps": stats["steps"], "epsilon": global_agent.epsilon,
+                    "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
+                }
+            })
             
             elif data["action"] == "race":
                 # This is for Level 2+.
@@ -263,8 +337,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_json({"type": "log", "message": f"Starting Level {stats['level']} training ({new_episodes} episodes)..."})
                 
                 # Run the REAL training
-                await train_global_agent(episodes=new_episodes, report_interval=max(1, new_episodes // 10))
-                
+                await train_global_agent(episodes=new_episodes, report_interval=max(1, new_episodes // 10), websocket=websocket)                
                 # Update stats for display
                 stats["episode"] += new_episodes
                 
@@ -287,34 +360,44 @@ async def websocket_endpoint(websocket: WebSocket):
                 
                 # 1. Player moves
                 direction = data["direction"]
-                _, reward_p, terminated_p, _, info_p = user_env.step(direction, is_player=True)
-                
+                _, _, terminated_p, _, info_p = user_env.step(direction, is_player=True)
                 if 'message' in info_p and info_p['message']:
                     await websocket.send_json({"type": "log", "message": info_p['message'], "player": True})
+
+                # 2. AI moves (even if player just won, to check for a draw)
+                action_ai = global_agent.get_action(user_env._get_state(), training=False)
+                _, _, terminated_ai, _, info_ai = user_env.step(action_ai, is_player=False)
                 
-                if terminated_p:
-                    # Player won
-                    await websocket.send_json({"type": "win", "winner": "player"})
-                else:
-                    # 2. AI moves immediately after
-                    action_ai = global_agent.get_action(user_env._get_state(), training=False)
-                    _, reward_ai, terminated_ai, _, info_ai = user_env.step(action_ai, is_player=False)
-                    
-                    if terminated_ai:
-                        # AI won
+                # 3. Now, check the results
+                if terminated_p and terminated_ai:
+                    # --- NEW TIE-BREAKER LOGIC ---
+                    # Both reached the goal, check score
+                    if user_env.agent_score > user_env.player_score:
                         await websocket.send_json({"type": "win", "winner": "ai"})
-                
-                # 3. Send ONE update with both new positions
-                maze_state = user_env.get_maze_state()
-                await websocket.send_json({
-                    "type": "state", "maze": maze_state["maze"],
-                    "agent_pos": user_env.agent_pos, # AI's new position
-                    "player_pos": user_env.player_pos, # Player's new position
-                    "stats": {
-                        "episode": stats["episode"], "steps": stats["steps"], "epsilon": global_agent.epsilon,
-                        "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
-                    }
-                })
+                    elif user_env.player_score > user_env.agent_score:
+                        await websocket.send_json({"type": "win", "winner": "player"})
+                    else:
+                        # Scores are identical, it's a true draw
+                        await websocket.send_json({"type": "win", "winner": "draw"})
+                    
+                elif terminated_p:
+                    # Only player won
+                    await websocket.send_json({"type": "win", "winner": "player"})
+                elif terminated_ai:
+                    # Only AI won
+                    await websocket.send_json({"type": "win", "winner": "ai"})
+                else:
+                    # 4. No one won, send normal state update
+                    maze_state = user_env.get_maze_state()
+                    await websocket.send_json({
+                        "type": "state", "maze": maze_state["maze"],
+                        "agent_pos": user_env.agent_pos,
+                        "player_pos": user_env.player_pos,
+                        "stats": {
+                            "episode": stats["episode"], "steps": stats["steps"], "epsilon": global_agent.epsilon,
+                            "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
+                        }
+                    })
                         
             elif data["action"] == "reset":
                 state, _ = user_env.reset()
