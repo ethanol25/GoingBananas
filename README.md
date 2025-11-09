@@ -1,4 +1,4 @@
-# 🍌 Going Bananas with a Reinforcement Learning Agent!
+# 🍌 Monkey See, Monkey Do!
 An Evil Monkey has stolen your bananas, but most importantly, your beautiful banana queen. He is learning the forest as we speak! You must save her, and collect as many bananas as possible! Race against Evil Monkey powered by Q-learning. Built with FastAPI, WebSockets, and Gymnasium, this game has you race against a reinforcement learning agent!
 
 ## 🐵 Evil Monkey (AI Agent)
