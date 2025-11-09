@@ -157,7 +157,7 @@ class QLearningAgent:
         except:
             return False
 
-# --- New Pre-training and Server Setup ---
+global_training_lock = asyncio.Lock()
 
 # Create ONE global agent and ONE environment just for training
 global_agent = QLearningAgent(64, 4)
@@ -167,45 +167,46 @@ pretraining_task: Optional[asyncio.Task] = None
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-async def pretrain_agent(episodes=100, report_interval=10):
-    """Pre-train the global agent in the background"""
+async def train_global_agent(episodes=10, report_interval=10):
+    """Safely train the global agent in the background"""
     global global_agent
-    print(f"Starting global pre-training for {episodes} episodes...")
     
-    for episode in range(episodes):
-        state, _ = training_env.reset()
-        done = False
-        steps = 0
+    # Use the lock to ensure only one training happens at a time
+    async with global_training_lock:
+        print(f"Starting global training for {episodes} episodes...")
         
-        while not done and steps < 200:
-            action = global_agent.get_action(state, training=True)
-            next_state, reward, terminated, truncated, _ = training_env.step(action)
-            done = terminated or truncated
-            global_agent.update(state, action, reward, next_state)
-            state = next_state
-            steps += 1
+        for episode in range(episodes):
+            state, _ = training_env.reset()
+            done = False
+            steps = 0
+            
+            while not done and steps < 200:
+                action = global_agent.get_action(state, training=True)
+                next_state, reward, terminated, truncated, _ = training_env.step(action)
+                done = terminated or truncated
+                global_agent.update(state, action, reward, next_state)
+                state = next_state
+                steps += 1
+            
+            global_agent.decay_epsilon()
+            
+            if (episode + 1) % report_interval == 0:
+                print(f"Global Training... Episode {episode + 1}/{episodes}")
+            
+            await asyncio.sleep(0) # Allow other tasks to run
         
-        global_agent.decay_epsilon()
-        
-        if (episode + 1) % report_interval == 0:
-            print(f"Global Pre-training... Episode {episode + 1}/{episodes}")
-        
-        # Allow other server tasks to run
-        await asyncio.sleep(0)
-    
-    global_agent.is_pretrained = True
-    global_agent.save_model()
-    print("!!! GLOBAL PRE-TRAINING COMPLETE! Model saved. !!!")
+        global_agent.is_pretrained = True
+        global_agent.save_model()
+        print(f"!!! GLOBAL TRAINING COMPLETE for {episodes} episodes! Model saved. !!!")
 
+# --- MODIFIED: Startup now just loads the model ---
 @app.on_event("startup")
 async def startup_event():
-    """Run pre-training on server startup"""
-    global pretraining_task
-    if not global_agent.load_model():
-        print("No saved model found. Starting pre-training in background...")
-        pretraining_task = asyncio.create_task(pretrain_agent())
-    else:
+    """On startup, just load the previously saved model"""
+    if global_agent.load_model():
         print("Loaded pre-trained model from disk.")
+    else:
+        print("No saved model found. Agent will be trained by users.")
 
 @app.get("/")
 async def get_root():
@@ -223,9 +224,7 @@ async def websocket_endpoint(websocket: WebSocket):
     # Use the GLOBAL pre-trained agent
     global global_agent 
     
-    # Constants for the "dummy" training visualization
-    DUMMY_TRAIN_EPISODES = 10
-    DUMMY_TRAIN_VISUAL_UPDATE_RATE = 1
+
 
     stats = {"episode": 0, "steps": 0}
     
@@ -245,31 +244,33 @@ async def websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_json()
 
             if data["action"] == "start_auto_train":
-                # This is now a "dummy" loop just for visualization.
-                await websocket.send_json({
-                    "type": "log",
-                    "message": f"Starting visual training for {DUMMY_TRAIN_EPISODES} episodes..."
-                })
+                # This is Level 1. It ACTUALLY trains the agent.
+                stats["level"] = 1
+                await websocket.send_json({"type": "log", "message": "Starting Level 1 training (10 episodes)..."})
                 
-                for ep in range(DUMMY_TRAIN_EPISODES):
-                    state, _ = user_env.reset()
-                    stats["episode"] += 1
-                    
-                    if ep % DUMMY_TRAIN_VISUAL_UPDATE_RATE == 0:
-                        maze_state = user_env.get_maze_state()
-                        await websocket.send_json({
-                            "type": "state", "maze": maze_state["maze"],
-                            "agent_pos": user_env.agent_pos, "player_pos": user_env.player_pos,
-                            "stats": {
-                                "episode": stats["episode"], "steps": 0, "epsilon": global_agent.epsilon,
-                                "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
-                            }
-                        })
-                        await asyncio.sleep(0.05) # Visual delay
-
+                # Run the REAL training
+                await train_global_agent(episodes=10, report_interval=1)
+                
+                # Update stats for display
+                stats["episode"] = 10 
+                
+                print("!!! LEVEL 1 TRAINING COMPLETE. SENDING MESSAGE. !!!")
                 await websocket.send_json({"type": "training_complete"})
             
             elif data["action"] == "race":
+                # This is for Level 2+.
+                stats["level"] += 1
+                new_episodes = stats["level"] * 10 # 20, 30, 40...
+                
+                await websocket.send_json({"type": "log", "message": f"Starting Level {stats['level']} training ({new_episodes} episodes)..."})
+                
+                # Run the REAL training
+                await train_global_agent(episodes=new_episodes, report_interval=max(1, new_episodes // 10))
+                
+                # Update stats for display
+                stats["episode"] += new_episodes
+                
+                # Reset the board for the race
                 state, _ = user_env.reset()
                 stats["steps"] = 0
                 
@@ -319,6 +320,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         
             elif data["action"] == "reset":
                 state, _ = user_env.reset()
+                stats["level"] = 0
                 stats["episode"] = 0
                 stats["steps"] = 0
                 

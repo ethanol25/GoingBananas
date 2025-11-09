@@ -230,6 +230,14 @@ h1 {
     z-index: 2; /* Stack on top of tiles */
 }
 
+.cell img.agent {
+    left: 0;
+}
+
+.cell img.player {
+    left: 10%
+}
+
 
 
 /* --- 8. Old/Hidden Element Styles --- */
