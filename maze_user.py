@@ -250,10 +250,20 @@ async def websocket_endpoint(websocket: WebSocket):
                 await train_global_agent(episodes=10, report_interval=1)
                 
                 # Update stats for display
+                state, _ = user_env.reset()
                 stats["episode"] = 10 
+
+                maze_state = user_env.get_maze_state()
                 
                 print("!!! LEVEL 1 TRAINING COMPLETE. SENDING MESSAGE. !!!")
-                await websocket.send_json({"type": "training_complete"})
+                await websocket.send_json({
+                "type": "state", "maze": maze_state["maze"],
+                "agent_pos": maze_state["agent_pos"], "player_pos": maze_state["player_pos"],
+                "stats": {
+                    "episode": stats["episode"], "steps": stats["steps"], "epsilon": global_agent.epsilon,
+                    "total_reward": 0, "player_score": user_env.player_score, "agent_score": user_env.agent_score
+                }
+            })
             
             elif data["action"] == "race":
                 # This is for Level 2+.
