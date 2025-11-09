@@ -18,7 +18,7 @@ An Evil Monkey has stolen your bananas, but most importantly, your beautiful ban
 
 | Element          | Reward | Description                |
 | ---------------- | ------ | -------------------------- |
-| ⭐ Power-up       | +15    | Collectible bonus items    |
+| 🍌 Banana       | +15    | Collectible bonus items    |
 | 🏆 Goal          | +100   | Reach the destination      |
 | 🏃 Speed Bonus   | +20    | Complete in under 50 steps |
 | 🧱 Wall Hit      | -5     | Collision penalty          |
@@ -27,25 +27,22 @@ An Evil Monkey has stolen your bananas, but most importantly, your beautiful ban
 | ⏱️ Time Pressure | -0.5   | After 100 steps            |
 
 ## 🚀 Installation
-
-Install Dependencies
 pip install fastapi uvicorn gymnasium numpy websockets
 
 ## 💻 Usage
-
 Start the Server
 python something.py
 The server will start on http://localhost:8000
 
-Train the AI
-* Click "🤖 Start AI Training" to begin Q-learning
+** 🐒 Train the Evil Monkey
+* Click "🐒 Start Evil Monkey Training" to begin Q-learning
 * Watch the AI navigate through randomly generated mazes
 * Monitor statistics: Episode count, Steps, Epsilon value
 * Click "⏸ Stop Training" when satisfied with performance
 * Race Against the AI
 * After training, click "🏁 Start Race!"
-* Use arrow keys or WASD to move your sprite (👤)
-* Try to reach the goal (🔴) before the AI (🤖)
+* Use arrow keys or WASD to move your sprite 
+* Try to reach the goal before the Evil Monkey
 * First to reach the goal wins!
 
 ## 📊 Statistics Tracked
