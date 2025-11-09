@@ -120,12 +120,13 @@ function renderMaze(maze, agentPos, playerPos) {
             const hasPlayer = playerPos[0] === i && playerPos[1] === j;
             const hasAgent = agentPos[0] === i && agentPos[1] === j;
 
-            if (hasPlayer) {
-                cellDiv.appendChild(createEntity('player'));
-            }
             if (hasAgent) {
                 cellDiv.appendChild(createEntity('agent'));
             }
+            if (hasPlayer) {
+                cellDiv.appendChild(createEntity('player'));
+            }
+            
             
             mazeDiv.appendChild(cellDiv);
         });
